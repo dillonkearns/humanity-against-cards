@@ -6,6 +6,7 @@ import BackendTask.Random
 import Cli.Option as Option
 import Cli.OptionsParser as OptionsParser
 import Cli.Program as Program
+import FatalError exposing (FatalError)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Pages.Script as Script exposing (Script)
@@ -18,7 +19,6 @@ run =
     Script.withCliOptions program
         (\{ promptCount, answerCount } ->
             loadCahCards
-                |> BackendTask.allowFatal
                 |> BackendTask.andThen
                     (\{ whites, blacks } ->
                         let
@@ -39,6 +39,7 @@ run =
 
 {-| Load the Cards Against Humanity JSON file from the local repo
 -}
+loadCahCards : BackendTask FatalError { whites : List String, blacks : List BlackCard }
 loadCahCards =
     BackendTask.File.jsonFile
         (Decode.field "white" (Decode.list Decode.string)
@@ -49,6 +50,7 @@ loadCahCards =
                 )
         )
         "../../../crhallberg/json-against-humanity/cah-all-compact.json"
+        |> BackendTask.allowFatal
 
 
 {-| Filter black cards to only include single-blank prompts (pick=1)
