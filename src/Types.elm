@@ -1,6 +1,7 @@
 module Types exposing (..)
 
 import Browser
+import Dict exposing (Dict)
 import Effect.Lamdera exposing (ClientId, SessionId)
 import Effect.Browser.Navigation exposing (Key)
 import Set exposing (Set)
@@ -16,12 +17,26 @@ type alias Deck =
     }
 
 
+-- PLAYER TYPES
+
+
+type PlayerToken
+    = PlayerToken String
+
+
+type alias Player =
+    { token : PlayerToken
+    , name : String
+    }
+
+
 -- MODELS
 
 
 type alias BackendModel =
     { counter : Int
     , deck : Maybe Deck
+    , players : Dict String Player  -- keyed by token string
     }
 
 
@@ -37,6 +52,10 @@ type alias FrontendModel =
     , key : Key
     , deckJsonInput : String
     , loadedDeck : Maybe Deck
+    , playerToken : Maybe PlayerToken
+    , playerNameInput : String
+    , joinedPlayer : Maybe Player
+    , playersList : List Player  -- For admin view
     }
 
 
@@ -51,12 +70,16 @@ type FrontendMsg
     | UrlRequested Browser.UrlRequest
     | DeckJsonInputChanged String
     | LoadDeckClicked
+    | PlayerNameInputChanged String
+    | JoinGameClicked
+    | GotPlayerToken PlayerToken
 
 
 type ToBackend
     = CounterIncremented
     | CounterDecremented
     | LoadDeck Deck
+    | JoinGame PlayerToken String  -- token, name
 
 
 type BackendMsg
@@ -67,3 +90,5 @@ type BackendMsg
 type ToFrontend
     = CounterNewValue Int ClientId
     | DeckLoaded Deck
+    | PlayerJoined Player
+    | PlayersListUpdated (List Player)

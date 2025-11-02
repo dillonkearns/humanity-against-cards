@@ -47,28 +47,53 @@ sampleDeckJson =
 tests : List (Effect.Test.EndToEndTest ToBackend FrontendMsg FrontendModel ToFrontend BackendMsg BackendModel)
 tests =
     [ Effect.Test.start
-        "Clients stay in sync"
+        "Players can join game and appear in admin console"
         (Effect.Time.millisToPosix 0)
         config
         [ Effect.Test.connectFrontend
             100
-            (Effect.Lamdera.sessionIdFromString "sessionId0")
+            (Effect.Lamdera.sessionIdFromString "player1Session")
             "/"
             { width = 800, height = 600 }
-            (\client1 ->
-                [ client1.click 100 (Dom.id "plusOne")
-                , client1.click 100 (Dom.id "plusOne")
-                , client1.click 100 (Dom.id "plusOne")
-                , client1.checkView 100 (Test.Html.Query.has [ Test.Html.Selector.exactText "3" ])
+            (\player1 ->
+                [ player1.checkView 100
+                    (Test.Html.Query.has [ Test.Html.Selector.text "Join Game" ])
+                , player1.input 100 (Dom.id "player-name-input") "Alice"
+                , player1.click 100 (Dom.id "join-game-button")
+                , player1.checkView 100
+                    (Test.Html.Query.has [ Test.Html.Selector.text "Welcome, Alice!" ])
+                , player1.checkView 100
+                    (Test.Html.Query.find [ Test.Html.Selector.id "player-joined-message" ]
+                        >> Test.Html.Query.has [ Test.Html.Selector.text "Waiting for game to start..." ]
+                    )
                 , Effect.Test.connectFrontend
                     100
-                    (Effect.Lamdera.sessionIdFromString "sessionId1")
+                    (Effect.Lamdera.sessionIdFromString "player2Session")
                     "/"
                     { width = 800, height = 600 }
-                    (\client2 ->
-                        [ client2.checkView 100 (Test.Html.Query.has [ Test.Html.Selector.exactText "3" ])
-                        , client2.click 100 (Dom.id "minusOne")
-                        , client1.checkView 100 (Test.Html.Query.has [ Test.Html.Selector.exactText "2" ])
+                    (\player2 ->
+                        [ player2.input 100 (Dom.id "player-name-input") "Bob"
+                        , player2.click 100 (Dom.id "join-game-button")
+                        , player2.checkView 100
+                            (Test.Html.Query.has [ Test.Html.Selector.text "Welcome, Bob!" ])
+                        , Effect.Test.connectFrontend
+                            100
+                            (Effect.Lamdera.sessionIdFromString "adminSession")
+                            "/admin"
+                            { width = 800, height = 600 }
+                            (\admin ->
+                                [ admin.checkView 100
+                                    (Test.Html.Query.has [ Test.Html.Selector.text "Joined Players" ])
+                                , admin.checkView 100
+                                    (Test.Html.Query.find [ Test.Html.Selector.id "players-list" ]
+                                        >> Test.Html.Query.has [ Test.Html.Selector.text "Alice" ]
+                                    )
+                                , admin.checkView 100
+                                    (Test.Html.Query.find [ Test.Html.Selector.id "players-list" ]
+                                        >> Test.Html.Query.has [ Test.Html.Selector.text "Bob" ]
+                                    )
+                                ]
+                            )
                         ]
                     )
                 ]

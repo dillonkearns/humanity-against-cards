@@ -1,15 +1,19 @@
 module Frontend exposing (Model, app, app_)
 
 import Browser
+import Dict
 import Effect.Command as Command exposing (Command, FrontendOnly)
 import Effect.Lamdera
 import Effect.Subscription as Subscription
 import Effect.Browser.Navigation as Navigation
+import Effect.Task
+import Effect.Time
 import Html exposing (Html, text)
-import Html.Attributes exposing (id, style, value, placeholder)
+import Html.Attributes exposing (id, style, value, placeholder, disabled)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as Decode exposing (Decoder)
 import Lamdera
+import Time
 import Types exposing (..)
 import Url exposing (Url)
 import Url.Parser as Parser exposing (Parser)
@@ -74,6 +78,10 @@ init url key =
       , key = key
       , deckJsonInput = ""
       , loadedDeck = Nothing
+      , playerToken = Nothing
+      , playerNameInput = ""
+      , joinedPlayer = Nothing
+      , playersList = []
       }
     , Command.none
     )
@@ -130,6 +138,30 @@ update msg model =
                     -- We could add error display later
                     ( model, Command.none )
 
+        PlayerNameInputChanged input ->
+            ( { model | playerNameInput = input }, Command.none )
+
+        JoinGameClicked ->
+            -- Generate a token using current time
+            ( model
+            , Effect.Task.perform
+                (\time -> GotPlayerToken (PlayerToken (String.fromInt (Time.posixToMillis time))))
+                Effect.Time.now
+            )
+
+        GotPlayerToken token ->
+            let
+                trimmedName =
+                    String.trim model.playerNameInput
+            in
+            if String.isEmpty trimmedName then
+                ( model, Command.none )
+
+            else
+                ( { model | playerToken = Just token }
+                , Effect.Lamdera.sendToBackend (JoinGame token trimmedName)
+                )
+
 
 -- UPDATE FROM BACKEND
 
@@ -142,6 +174,12 @@ updateFromBackend msg model =
 
         DeckLoaded deck ->
             ( { model | loadedDeck = Just deck }, Command.none )
+
+        PlayerJoined player ->
+            ( { model | joinedPlayer = Just player }, Command.none )
+
+        PlayersListUpdated players ->
+            ( { model | playersList = players }, Command.none )
 
 
 -- VIEW
@@ -161,10 +199,48 @@ viewPlayer : Model -> Html FrontendMsg
 viewPlayer model =
     Html.div [ style "padding" "30px" ]
         [ Html.h1 [] [ text "Humanity Against Cards" ]
-        , Html.p [] [ text "Player view - coming soon!" ]
-        , Html.button [ onClick Increment, id "plusOne" ] [ text "+" ]
-        , Html.text (String.fromInt model.counter)
-        , Html.button [ onClick Decrement, id "minusOne" ] [ text "-" ]
+        , case model.joinedPlayer of
+            Nothing ->
+                viewJoinForm model
+
+            Just player ->
+                viewPlayerLobby player
+        ]
+
+
+viewJoinForm : Model -> Html FrontendMsg
+viewJoinForm model =
+    Html.div []
+        [ Html.h2 [] [ text "Join Game" ]
+        , Html.input
+            [ placeholder "Enter your name..."
+            , value model.playerNameInput
+            , onInput PlayerNameInputChanged
+            , id "player-name-input"
+            , style "padding" "10px"
+            , style "font-size" "16px"
+            , style "margin-bottom" "10px"
+            , style "width" "300px"
+            ]
+            []
+        , Html.div []
+            [ Html.button
+                [ onClick JoinGameClicked
+                , id "join-game-button"
+                , style "padding" "10px 20px"
+                , style "font-size" "16px"
+                , disabled (String.isEmpty (String.trim model.playerNameInput))
+                ]
+                [ text "Join Game" ]
+            ]
+        ]
+
+
+viewPlayerLobby : Player -> Html FrontendMsg
+viewPlayerLobby player =
+    Html.div []
+        [ Html.h2 [] [ text ("Welcome, " ++ player.name ++ "!") ]
+        , Html.p [ id "player-joined-message" ] [ text "Waiting for game to start..." ]
         ]
 
 
@@ -172,6 +248,7 @@ viewAdmin : Model -> Html FrontendMsg
 viewAdmin model =
     Html.div [ style "padding" "30px" ]
         [ Html.h1 [] [ text "Admin Console" ]
+        , viewPlayersList model.playersList
         , Html.h2 [] [ text "Load Deck" ]
         , Html.textarea
             [ placeholder "Paste deck JSON here..."
@@ -197,6 +274,24 @@ viewAdmin model =
 
             Just deck ->
                 viewLoadedDeck deck
+        ]
+
+
+viewPlayersList : List Player -> Html FrontendMsg
+viewPlayersList players =
+    Html.div [ style "margin-bottom" "30px" ]
+        [ Html.h2 [] [ text "Joined Players" ]
+        , if List.isEmpty players then
+            Html.p [] [ text "No players yet" ]
+
+          else
+            Html.ul [ id "players-list" ]
+                (List.map
+                    (\player ->
+                        Html.li [] [ text player.name ]
+                    )
+                    players
+                )
         ]
 
 
