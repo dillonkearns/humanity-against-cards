@@ -22,6 +22,9 @@ The objective is **fun shared social chaos**, not competitive mastery.
 * **LLM not called in realtime**; card decks are pasted in via admin JSON
 * **Durable identity and robust reconnect** via `localStorage` token
 * **Lamdera program-test** for all core flows
+* **Hand size: 10 cards** per player (replenished after submission)
+* **No minimum players:** admin starts game when ready
+* **Static player list:** once game starts, no join/leave mid-game (disconnects are transparent, no special handling)
 
 ---
 
@@ -39,7 +42,8 @@ The objective is **fun shared social chaos**, not competitive mastery.
 
 3. **Prompt Phase**
 
-   * Judge selects prompt (or auto for MVP)
+   * Prompts cycle in order from deck
+   * Judge has veto button to skip to next prompt
 
 4. **Submission Phase**
 
@@ -65,12 +69,12 @@ The objective is **fun shared social chaos**, not competitive mastery.
 8. **Post-Round**
 
    * Reaction totals are now revealed to **everyone**
-   * Session stats updated (for end-game awards)
+   * Session stats updated (cumulative reaction counts per player)
 
 9. **End Game**
 
    * Admin triggers end
-   * Display session awards (e.g. “Most Laughs”, “Agent of Chaos”)
+   * Display session stats (raw reaction counts per player)
 
 ---
 
@@ -82,11 +86,11 @@ The objective is **fun shared social chaos**, not competitive mastery.
 
 ---
 
-### **Session Awards**
+### **Session Stats**
 
-* Stats accumulate across the game
-* Awards revealed on end game screen
-* Fun tone, not competitive pressure
+* Raw reaction counts accumulate across the game (e.g., total 😂, 😬, 🤯 received per player)
+* Stats revealed on end game screen
+* MVP: just show raw numbers; future enhancement: convert to awards like "Most Laughs", "Agent of Chaos"
 
 ---
 
@@ -94,7 +98,7 @@ The objective is **fun shared social chaos**, not competitive mastery.
 
 * NOT a player; separate UI
 * Can:
-  * Load deck JSON (this is generated from a manual prompt call to an LLM. The prompt template should be maintained in PROMPT.md, describing the JSON output format, and should accomdate for a bullet list supplied by the admin at the top of the prompt to give some specific inside jokes and themes that should be included in the generated deck)
+  * Load deck JSON (this is generated from a manual prompt call to an LLM. The prompt template should be maintained in PROMPT.md, describing the JSON output format with single-blank prompts, and should accommodate a bullet list supplied by the admin at the top of the prompt to give some specific inside jokes and themes that should be included in the generated deck)
   * Start / end game
 * No identity binding required
 * Honor-system: only creator uses it
@@ -117,6 +121,9 @@ Admin pastes JSON:
   ]
 }
 ```
+
+**MVP: Single-blank prompts only** (all prompts have exactly one `____`).
+Future enhancement: support 2+ blanks.
 
 *(LLM used manually outside of this app to generate this; no HTTP calls to LLM during play)*
 
@@ -144,7 +151,7 @@ All critical flows tested with **`lamdera/program-test`**, including:
 * Reaction phase unlock
 * Judge selection
 * Score increment
-* Awards on end game
+* Stats on end game
 * Reconnect behavior
 * **Admin never becomes a player**
 * **Only one game exists**
