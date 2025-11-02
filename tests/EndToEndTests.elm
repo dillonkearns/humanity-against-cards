@@ -141,7 +141,22 @@ tests =
                                         -- Charlie (judge) selects winner
                                         , player3.click 100 (Dom.id "select-winner-0")
 
-                                        -- TODO: Verify score update when we add score display
+                                        -- WINNER ANNOUNCEMENT
+                                        -- All players see the winner announcement
+                                        , player1.checkView 100
+                                            (Test.Html.Query.find [ Test.Html.Selector.id "winner-announcement" ]
+                                                >> Test.Html.Query.has [ Test.Html.Selector.text "wins this round!" ]
+                                            )
+                                        , player2.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Round Complete!" ])
+                                        , player3.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Round Complete!" ])
+
+                                        -- Verify scoreboard shows updated scores
+                                        , player1.checkView 100
+                                            (Test.Html.Query.find [ Test.Html.Selector.id "scoreboard" ]
+                                                >> Test.Html.Query.has [ Test.Html.Selector.text "pts" ]
+                                            )
                                         ]
                                     )
                                 ]

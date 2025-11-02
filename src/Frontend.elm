@@ -254,8 +254,26 @@ updateFromBackend msg model =
             ( model, Command.none )
 
         WinnerSelected { winner, winningCard } ->
-            -- TODO: Handle winner announcement
-            ( model, Command.none )
+            -- Store winner info to display announcement
+            let
+                updatedGameState =
+                    case model.gameState of
+                        Playing playingState ->
+                            Playing
+                                { playingState
+                                    | roundPhase =
+                                        Just
+                                            (RoundComplete
+                                                { winner = winner
+                                                , winningCard = winningCard
+                                                }
+                                            )
+                                }
+
+                        other ->
+                            other
+            in
+            ( { model | gameState = updatedGameState }, Command.none )
 
 
 -- VIEW
@@ -342,6 +360,52 @@ getJudgeName maybeJudgeToken players =
             "the judge"
 
 
+viewScoreboard : List Player -> Maybe PlayerToken -> Html FrontendMsg
+viewScoreboard players currentJudge =
+    let
+        sortedPlayers =
+            List.sortBy (\p -> -p.score) players
+    in
+    Html.div
+        [ id "scoreboard"
+        , style "margin-bottom" "20px"
+        , style "padding" "15px"
+        , style "background-color" "#f9f9f9"
+        , style "border-radius" "8px"
+        , style "border" "1px solid #ddd"
+        ]
+        [ Html.h3 [ style "margin-top" "0", style "margin-bottom" "10px" ] [ text "Scores" ]
+        , Html.div [ style "display" "flex", style "flex-wrap" "wrap", style "gap" "10px" ]
+            (List.map (viewPlayerScore currentJudge) sortedPlayers)
+        ]
+
+
+viewPlayerScore : Maybe PlayerToken -> Player -> Html FrontendMsg
+viewPlayerScore currentJudge player =
+    let
+        isJudge =
+            currentJudge == Just player.token
+    in
+    Html.div
+        [ style "padding" "8px 12px"
+        , style "background-color" (if isJudge then "#e3f2fd" else "white")
+        , style "border-radius" "4px"
+        , style "border" (if isJudge then "2px solid #2196F3" else "1px solid #ddd")
+        , style "min-width" "100px"
+        ]
+        [ Html.div
+            [ style "font-weight" "bold"
+            , style "margin-bottom" "4px"
+            ]
+            [ text (player.name ++ if isJudge then " ⚖️" else "") ]
+        , Html.div
+            [ style "font-size" "20px"
+            , style "color" "#4CAF50"
+            ]
+            [ text (String.fromInt player.score ++ " pts") ]
+        ]
+
+
 viewPlayerGame : Player -> Model -> Html FrontendMsg
 viewPlayerGame player model =
     let
@@ -380,11 +444,15 @@ viewPlayerGame player model =
                     else
                         "Waiting for the judge's decision..."
 
+                Just (RoundComplete _) ->
+                    "Round Complete!"
+
                 Nothing ->
                     "Welcome, " ++ player.name ++ "!"
     in
     Html.div []
         [ Html.h2 [] [ text headerText ]
+        , viewScoreboard model.playersList model.currentJudge
         , case roundPhase of
             Nothing ->
                 Html.p [] [ text "Round starting..." ]
@@ -476,6 +544,9 @@ viewRoundPhase player model isJudge roundPhase =
                         , viewSubmittedCards submissions
                         ]
                 ]
+
+        RoundComplete { winner, winningCard } ->
+            viewWinnerAnnouncement winner winningCard model.playersList
 
 
 viewCardSelection : Model -> Html FrontendMsg
@@ -606,6 +677,56 @@ viewSubmittedCards submissions =
             )
             submissions
         )
+
+
+viewWinnerAnnouncement : PlayerToken -> String -> List Player -> Html FrontendMsg
+viewWinnerAnnouncement winnerToken winningCard players =
+    let
+        winnerName =
+            players
+                |> List.filter (\p -> p.token == winnerToken)
+                |> List.head
+                |> Maybe.map .name
+                |> Maybe.withDefault "Unknown"
+    in
+    Html.div
+        [ id "winner-announcement"
+        , style "text-align" "center"
+        , style "padding" "40px"
+        ]
+        [ Html.div
+            [ style "font-size" "48px"
+            , style "margin-bottom" "20px"
+            ]
+            [ text "🏆" ]
+        , Html.h2
+            [ style "font-size" "32px"
+            , style "margin-bottom" "20px"
+            , style "color" "#4CAF50"
+            ]
+            [ text (winnerName ++ " wins this round!") ]
+        , Html.div
+            [ style "padding" "20px"
+            , style "background-color" "#f0f0f0"
+            , style "border-radius" "8px"
+            , style "margin-bottom" "30px"
+            , style "max-width" "600px"
+            , style "margin-left" "auto"
+            , style "margin-right" "auto"
+            ]
+            [ Html.h3 [ style "margin-top" "0" ] [ text "Winning Card:" ]
+            , Html.p
+                [ style "font-size" "20px"
+                , style "font-style" "italic"
+                ]
+                [ text ("\"" ++ winningCard ++ "\"") ]
+            ]
+        , Html.p
+            [ style "font-size" "18px"
+            , style "color" "#666"
+            ]
+            [ text "Waiting for next round..." ]
+        ]
 
 
 viewCardButton : Maybe String -> Int -> String -> Html FrontendMsg

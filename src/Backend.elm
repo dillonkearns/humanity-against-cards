@@ -243,11 +243,24 @@ updateFromFrontend sessionId clientId msg model =
                                         (Maybe.map (\player -> { player | score = player.score + 1 }))
                                         model.players
 
-                                -- TODO: Start next round or end game
-                                -- For now, just broadcast the winner
+                                -- Update to RoundComplete phase
+                                roundCompletePhase =
+                                    RoundComplete
+                                        { winner = winnerToken
+                                        , winningCard = winningCard
+                                        }
+
+                                updatedGameState =
+                                    Playing { playingState | roundPhase = Just roundCompletePhase }
                             in
-                            ( { model | players = updatedPlayers }
-                            , Effect.Lamdera.broadcast (WinnerSelected { winner = winnerToken, winningCard = winningCard })
+                            ( { model
+                                | players = updatedPlayers
+                                , gameState = updatedGameState
+                              }
+                            , Command.batch
+                                [ Effect.Lamdera.broadcast (WinnerSelected { winner = winnerToken, winningCard = winningCard })
+                                , Effect.Lamdera.broadcast (PlayersListUpdated (Dict.values updatedPlayers))
+                                ]
                             )
 
                         _ ->

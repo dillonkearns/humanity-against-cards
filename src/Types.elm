@@ -56,6 +56,10 @@ type RoundPhase
         { prompt : String
         , submissions : List Submission
         }
+    | RoundComplete
+        { winner : PlayerToken
+        , winningCard : String
+        }
 
 
 type GameState
