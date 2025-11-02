@@ -36,12 +36,35 @@ type alias Player =
 -- GAME STATE
 
 
+type alias Submission =
+    { playerToken : PlayerToken
+    , card : String
+    }
+
+
+type RoundPhase
+    = SubmissionPhase
+        { prompt : String
+        , submissions : List Submission
+        }
+    | RevealPhase
+        { prompt : String
+        , submissions : List Submission  -- Shuffled to hide identity
+        , revealedCount : Int  -- How many cards have been revealed so far
+        }
+    | JudgingPhase
+        { prompt : String
+        , submissions : List Submission
+        }
+
+
 type GameState
     = Lobby
     | Playing
         { currentJudge : PlayerToken
         , remainingAnswers : List String  -- Cards not yet dealt
         , remainingPrompts : List String  -- Prompts not yet used
+        , roundPhase : Maybe RoundPhase
         }
     | Ended
 
@@ -76,6 +99,8 @@ type alias FrontendModel =
     , gameState : GameState
     , myHand : List String  -- Player's current hand of cards
     , currentJudge : Maybe PlayerToken
+    , selectedCard : Maybe String  -- Card selected but not yet submitted
+    , hasSubmitted : Bool
     }
 
 
@@ -94,6 +119,10 @@ type FrontendMsg
     | JoinGameClicked
     | GotPlayerToken PlayerToken
     | StartGameClicked
+    | CardSelected String
+    | SubmitCardClicked
+    | RevealNextCardClicked
+    | SelectWinnerClicked PlayerToken
 
 
 type ToBackend
@@ -102,6 +131,9 @@ type ToBackend
     | LoadDeck Deck
     | JoinGame PlayerToken String  -- token, name
     | StartGame
+    | SubmitCard PlayerToken String  -- player token, card
+    | RevealNextCard
+    | SelectWinner PlayerToken  -- winner's token
 
 
 type BackendMsg
@@ -117,5 +149,12 @@ type ToFrontend
     | GameStarted
         { yourHand : List String
         , currentJudge : PlayerToken
+        , initialPrompt : String
         }
     | GameStateUpdated GameState
+    | RoundPhaseUpdated RoundPhase
+    | CardSubmitted  -- Confirmation that your card was submitted
+    | WinnerSelected
+        { winner : PlayerToken
+        , winningCard : String
+        }

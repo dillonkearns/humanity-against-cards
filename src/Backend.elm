@@ -114,6 +114,150 @@ updateFromFrontend sessionId clientId msg model =
                 ]
             )
 
+        SubmitCard playerToken card ->
+            case model.gameState of
+                Playing playingState ->
+                    case playingState.roundPhase of
+                        Just (SubmissionPhase phaseData) ->
+                            let
+                                -- Add the submission
+                                newSubmission =
+                                    { playerToken = playerToken, card = card }
+
+                                newSubmissions =
+                                    newSubmission :: phaseData.submissions
+
+                                -- Count non-judge players
+                                nonJudgeCount =
+                                    Dict.size model.players - 1
+
+                                -- Check if all players have submitted
+                                allSubmitted =
+                                    List.length newSubmissions >= nonJudgeCount
+
+                                ( nextPhase, newGameState ) =
+                                    if allSubmitted && nonJudgeCount > 0 then
+                                        -- Transition to reveal phase with shuffled submissions
+                                        let
+                                            shuffled =
+                                                shuffleSubmissions newSubmissions
+
+                                            revealPhase =
+                                                RevealPhase
+                                                    { prompt = phaseData.prompt
+                                                    , submissions = shuffled
+                                                    , revealedCount = 0
+                                                    }
+                                        in
+                                        ( revealPhase
+                                        , Playing { playingState | roundPhase = Just revealPhase }
+                                        )
+
+                                    else
+                                        -- Stay in submission phase
+                                        let
+                                            updatedPhase =
+                                                SubmissionPhase { phaseData | submissions = newSubmissions }
+                                        in
+                                        ( updatedPhase
+                                        , Playing { playingState | roundPhase = Just updatedPhase }
+                                        )
+                            in
+                            ( { model | gameState = newGameState }
+                            , Effect.Lamdera.broadcast (RoundPhaseUpdated nextPhase)
+                            )
+
+                        _ ->
+                            -- Not in submission phase, ignore
+                            ( model, Command.none )
+
+                _ ->
+                    -- Not playing, ignore
+                    ( model, Command.none )
+
+        RevealNextCard ->
+            case model.gameState of
+                Playing playingState ->
+                    case playingState.roundPhase of
+                        Just (RevealPhase phaseData) ->
+                            let
+                                newRevealedCount =
+                                    phaseData.revealedCount + 1
+
+                                allRevealed =
+                                    newRevealedCount >= List.length phaseData.submissions
+
+                                ( nextPhase, newGameState ) =
+                                    if allRevealed then
+                                        -- Transition to judging phase
+                                        let
+                                            judgingPhase =
+                                                JudgingPhase
+                                                    { prompt = phaseData.prompt
+                                                    , submissions = phaseData.submissions
+                                                    }
+                                        in
+                                        ( judgingPhase
+                                        , Playing { playingState | roundPhase = Just judgingPhase }
+                                        )
+
+                                    else
+                                        -- Increment reveal count
+                                        let
+                                            updatedPhase =
+                                                RevealPhase { phaseData | revealedCount = newRevealedCount }
+                                        in
+                                        ( updatedPhase
+                                        , Playing { playingState | roundPhase = Just updatedPhase }
+                                        )
+                            in
+                            ( { model | gameState = newGameState }
+                            , Effect.Lamdera.broadcast (RoundPhaseUpdated nextPhase)
+                            )
+
+                        _ ->
+                            -- Not in reveal phase, ignore
+                            ( model, Command.none )
+
+                _ ->
+                    -- Not playing, ignore
+                    ( model, Command.none )
+
+        SelectWinner winnerToken ->
+            case model.gameState of
+                Playing playingState ->
+                    case playingState.roundPhase of
+                        Just (JudgingPhase phaseData) ->
+                            let
+                                -- Find the winning card
+                                winningCard =
+                                    phaseData.submissions
+                                        |> List.filter (\sub -> sub.playerToken == winnerToken)
+                                        |> List.head
+                                        |> Maybe.map .card
+                                        |> Maybe.withDefault ""
+
+                                -- Update winner's score
+                                updatedPlayers =
+                                    Dict.update (tokenToString winnerToken)
+                                        (Maybe.map (\player -> { player | score = player.score + 1 }))
+                                        model.players
+
+                                -- TODO: Start next round or end game
+                                -- For now, just broadcast the winner
+                            in
+                            ( { model | players = updatedPlayers }
+                            , Effect.Lamdera.broadcast (WinnerSelected { winner = winnerToken, winningCard = winningCard })
+                            )
+
+                        _ ->
+                            -- Not in judging phase, ignore
+                            ( model, Command.none )
+
+                _ ->
+                    -- Not playing, ignore
+                    ( model, Command.none )
+
         StartGame ->
             case model.deck of
                 Nothing ->
@@ -143,11 +287,27 @@ updateFromFrontend sessionId clientId msg model =
                                     |> List.map (\p -> ( tokenToString p.token, p ))
                                     |> Dict.fromList
 
+                            -- Start first round with first prompt
+                            ( firstPrompt, restPrompts ) =
+                                case deck.prompts of
+                                    prompt :: rest ->
+                                        ( prompt, rest )
+
+                                    [] ->
+                                        ( "", [] )
+
+                            initialRoundPhase =
+                                SubmissionPhase
+                                    { prompt = firstPrompt
+                                    , submissions = []
+                                    }
+
                             newGameState =
                                 Playing
                                     { currentJudge = firstJudge
                                     , remainingAnswers = remainingAnswers
-                                    , remainingPrompts = deck.prompts
+                                    , remainingPrompts = restPrompts
+                                    , roundPhase = Just initialRoundPhase
                                     }
 
                             -- Send each player their hand
@@ -162,6 +322,7 @@ updateFromFrontend sessionId clientId msg model =
                                                             (GameStarted
                                                                 { yourHand = player.hand
                                                                 , currentJudge = firstJudge
+                                                                , initialPrompt = firstPrompt
                                                                 }
                                                             )
                                                         )
@@ -171,8 +332,7 @@ updateFromFrontend sessionId clientId msg model =
                                         )
 
                             commands =
-                                Command.batch
-                                    (Effect.Lamdera.broadcast (GameStateUpdated newGameState) :: playerCommands)
+                                Command.batch playerCommands
                         in
                         ( { model
                             | players = newPlayers
@@ -188,6 +348,14 @@ updateFromFrontend sessionId clientId msg model =
 tokenToString : PlayerToken -> String
 tokenToString (PlayerToken str) =
     str
+
+
+shuffleSubmissions : List Submission -> List Submission
+shuffleSubmissions submissions =
+    -- Simple deterministic shuffle based on card content
+    -- This provides anonymity while being deterministic for testing
+    List.sortBy (\sub -> String.length sub.card) submissions
+        |> List.reverse
 
 
 dealCardsToPlayers : List Player -> List String -> List Player -> ( List Player, List String )

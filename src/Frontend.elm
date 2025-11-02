@@ -85,6 +85,8 @@ init url key =
       , gameState = Lobby
       , myHand = []
       , currentJudge = Nothing
+      , selectedCard = Nothing
+      , hasSubmitted = False
       }
     , Command.none
     )
@@ -168,6 +170,25 @@ update msg model =
         StartGameClicked ->
             ( model, Effect.Lamdera.sendToBackend StartGame )
 
+        CardSelected card ->
+            ( { model | selectedCard = Just card }, Command.none )
+
+        SubmitCardClicked ->
+            case ( model.playerToken, model.selectedCard ) of
+                ( Just token, Just card ) ->
+                    ( { model | hasSubmitted = True }
+                    , Effect.Lamdera.sendToBackend (SubmitCard token card)
+                    )
+
+                _ ->
+                    ( model, Command.none )
+
+        RevealNextCardClicked ->
+            ( model, Effect.Lamdera.sendToBackend RevealNextCard )
+
+        SelectWinnerClicked winnerToken ->
+            ( model, Effect.Lamdera.sendToBackend (SelectWinner winnerToken) )
+
 
 -- UPDATE FROM BACKEND
 
@@ -187,22 +208,54 @@ updateFromBackend msg model =
         PlayersListUpdated players ->
             ( { model | playersList = players }, Command.none )
 
-        GameStarted { yourHand, currentJudge } ->
+        GameStarted { yourHand, currentJudge, initialPrompt } ->
+            let
+                -- Create initial round phase with the prompt
+                initialRoundPhase =
+                    SubmissionPhase
+                        { prompt = initialPrompt
+                        , submissions = []
+                        }
+
+                updatedGameState =
+                    Playing
+                        { currentJudge = currentJudge
+                        , remainingAnswers = []
+                        , remainingPrompts = []
+                        , roundPhase = Just initialRoundPhase
+                        }
+            in
             ( { model
                 | myHand = yourHand
                 , currentJudge = Just currentJudge
-                , gameState =
-                    Playing
-                        { currentJudge = currentJudge
-                        , remainingAnswers = []  -- We don't track this on frontend
-                        , remainingPrompts = []
-                        }
+                , gameState = updatedGameState
+                , hasSubmitted = False  -- Reset submission status for new round
               }
             , Command.none
             )
 
         GameStateUpdated gameState ->
             ( { model | gameState = gameState }, Command.none )
+
+        RoundPhaseUpdated roundPhase ->
+            let
+                updatedGameState =
+                    case model.gameState of
+                        Playing playingState ->
+                            Playing { playingState | roundPhase = Just roundPhase }
+
+                        other ->
+                            other
+            in
+            ( { model | gameState = updatedGameState }, Command.none )
+
+        CardSubmitted ->
+            -- Confirmation message, already handled locally
+            ( model, Command.none )
+
+        WinnerSelected { winner, winningCard } ->
+            -- TODO: Handle winner announcement
+            ( model, Command.none )
 
 
 -- VIEW
@@ -232,7 +285,7 @@ viewPlayer model =
                         viewPlayerLobby player
 
                     Playing _ ->
-                        viewPlayerHand player model.myHand model.currentJudge
+                        viewPlayerGame player model
 
                     Ended ->
                         Html.div [] [ text "Game ended!" ]
@@ -275,34 +328,266 @@ viewPlayerLobby player =
         ]
 
 
-viewPlayerHand : Player -> List String -> Maybe PlayerToken -> Html FrontendMsg
-viewPlayerHand player hand maybeJudge =
+viewPlayerGame : Player -> Model -> Html FrontendMsg
+viewPlayerGame player model =
     let
         isJudge =
-            maybeJudge == Just player.token
+            model.currentJudge == Just player.token
+
+        roundPhase =
+            case model.gameState of
+                Playing playingState ->
+                    playingState.roundPhase
+
+                _ ->
+                    Nothing
     in
     Html.div []
         [ Html.h2 [] [ text ("Welcome, " ++ player.name ++ "!") ]
-        , Html.p []
-            [ text
-                (if isJudge then
-                    "You are the judge this round!"
+        , case roundPhase of
+            Nothing ->
+                Html.p [] [ text "Round starting..." ]
 
-                 else
-                    "Your hand:"
-                )
-            ]
-        , if isJudge then
-            Html.div [] [ text "Judge view coming soon..." ]
+            Just phase ->
+                viewRoundPhase player model isJudge phase
+        ]
+
+
+viewRoundPhase : Player -> Model -> Bool -> RoundPhase -> Html FrontendMsg
+viewRoundPhase player model isJudge roundPhase =
+    case roundPhase of
+        SubmissionPhase { prompt, submissions } ->
+            Html.div []
+                [ Html.div
+                    [ style "margin-bottom" "20px"
+                    , style "padding" "20px"
+                    , style "background-color" "#f0f0f0"
+                    , style "border-radius" "8px"
+                    ]
+                    [ Html.h3 [] [ text "Current Prompt:" ]
+                    , Html.p
+                        [ style "font-size" "18px"
+                        , style "font-weight" "bold"
+                        , id "current-prompt"
+                        ]
+                        [ text prompt ]
+                    ]
+                , if isJudge then
+                    Html.div []
+                        [ Html.p [] [ text "You are the judge this round!" ]
+                        , Html.p [] [ text ("Waiting for " ++ String.fromInt (List.length submissions) ++ " submissions...") ]
+                        ]
+
+                  else
+                    viewCardSelection model
+                ]
+
+        RevealPhase { prompt, submissions, revealedCount } ->
+            Html.div []
+                [ Html.div
+                    [ style "margin-bottom" "20px"
+                    , style "padding" "20px"
+                    , style "background-color" "#f0f0f0"
+                    , style "border-radius" "8px"
+                    ]
+                    [ Html.h3 [] [ text "Current Prompt:" ]
+                    , Html.p
+                        [ style "font-size" "18px"
+                        , style "font-weight" "bold"
+                        , id "current-prompt"
+                        ]
+                        [ text prompt ]
+                    ]
+                , if isJudge then
+                    viewJudgeReveal submissions revealedCount
+
+                  else
+                    Html.div []
+                        [ Html.h3 [] [ text "Revealing cards..." ]
+                        , Html.p [ id "reveal-status" ]
+                            [ text (String.fromInt revealedCount ++ " of " ++ String.fromInt (List.length submissions) ++ " cards revealed") ]
+                        ]
+                ]
+
+        JudgingPhase { prompt, submissions } ->
+            Html.div []
+                [ Html.div
+                    [ style "margin-bottom" "20px"
+                    , style "padding" "20px"
+                    , style "background-color" "#f0f0f0"
+                    , style "border-radius" "8px"
+                    ]
+                    [ Html.h3 [] [ text "Current Prompt:" ]
+                    , Html.p
+                        [ style "font-size" "18px"
+                        , style "font-weight" "bold"
+                        , id "current-prompt"
+                        ]
+                        [ text prompt ]
+                    ]
+                , if isJudge then
+                    viewJudgeSelection prompt submissions
+
+                  else
+                    Html.div []
+                        [ Html.h3 [] [ text "All cards revealed!" ]
+                        , Html.p [] [ text "Waiting for judge to select winner..." ]
+                        , viewSubmittedCards submissions
+                        ]
+                ]
+
+
+viewCardSelection : Model -> Html FrontendMsg
+viewCardSelection model =
+    Html.div []
+        [ Html.h3 [] [ text "Your Hand:" ]
+        , if model.hasSubmitted then
+            Html.p [ style "color" "green", id "submission-status" ]
+                [ text "✓ Card submitted! Waiting for other players..." ]
 
           else
-            Html.ul [ id "player-hand" ]
-                (List.map
-                    (\card ->
-                        Html.li [] [ text card ]
-                    )
-                    hand
-                )
+            Html.div []
+                [ Html.ul [ id "player-hand", style "list-style" "none", style "padding" "0" ]
+                    (List.indexedMap (viewCardButton model.selectedCard) model.myHand)
+                , case model.selectedCard of
+                    Nothing ->
+                        Html.p [ style "color" "#666" ] [ text "Select a card to submit" ]
+
+                    Just _ ->
+                        Html.button
+                            [ onClick SubmitCardClicked
+                            , id "submit-card-button"
+                            , style "padding" "10px 20px"
+                            , style "font-size" "16px"
+                            , style "background-color" "#4CAF50"
+                            , style "color" "white"
+                            , style "border" "none"
+                            , style "border-radius" "4px"
+                            , style "cursor" "pointer"
+                            ]
+                            [ text "Submit Card" ]
+                ]
+        ]
+
+
+viewJudgeReveal : List Submission -> Int -> Html FrontendMsg
+viewJudgeReveal submissions revealedCount =
+    let
+        revealedSubmissions =
+            List.take revealedCount submissions
+
+        hasMore =
+            revealedCount < List.length submissions
+    in
+    Html.div []
+        [ Html.h3 [] [ text "Reveal Cards One-by-One" ]
+        , Html.div [ id "revealed-cards", style "margin-bottom" "20px" ]
+            (List.indexedMap viewRevealedCard revealedSubmissions)
+        , if hasMore then
+            Html.button
+                [ onClick RevealNextCardClicked
+                , id "reveal-next-button"
+                , style "padding" "15px 30px"
+                , style "font-size" "18px"
+                , style "background-color" "#2196F3"
+                , style "color" "white"
+                , style "border" "none"
+                , style "border-radius" "4px"
+                , style "cursor" "pointer"
+                ]
+                [ text ("Reveal Card " ++ String.fromInt (revealedCount + 1)) ]
+
+          else
+            Html.p [ style "color" "green", style "font-weight" "bold" ]
+                [ text "All cards revealed! Now select the winner." ]
+        ]
+
+
+viewRevealedCard : Int -> Submission -> Html FrontendMsg
+viewRevealedCard index submission =
+    Html.div
+        [ style "padding" "15px"
+        , style "margin-bottom" "10px"
+        , style "background-color" "white"
+        , style "border" "2px solid #ddd"
+        , style "border-radius" "8px"
+        ]
+        [ Html.p [ style "font-size" "16px", style "margin" "0" ] [ text submission.card ] ]
+
+
+viewJudgeSelection : String -> List Submission -> Html FrontendMsg
+viewJudgeSelection prompt submissions =
+    Html.div []
+        [ Html.h3 [] [ text "Select the Winner!" ]
+        , Html.div [ id "judging-cards" ]
+            (List.indexedMap viewJudgingCard submissions)
+        ]
+
+
+viewJudgingCard : Int -> Submission -> Html FrontendMsg
+viewJudgingCard index submission =
+    Html.div
+        [ style "padding" "15px"
+        , style "margin-bottom" "10px"
+        , style "background-color" "white"
+        , style "border" "2px solid #ddd"
+        , style "border-radius" "8px"
+        ]
+        [ Html.p [ style "font-size" "16px", style "margin-bottom" "10px" ] [ text submission.card ]
+        , Html.button
+            [ onClick (SelectWinnerClicked submission.playerToken)
+            , id ("select-winner-" ++ String.fromInt index)
+            , style "padding" "10px 20px"
+            , style "font-size" "14px"
+            , style "background-color" "#4CAF50"
+            , style "color" "white"
+            , style "border" "none"
+            , style "border-radius" "4px"
+            , style "cursor" "pointer"
+            ]
+            [ text "Select Winner" ]
+        ]
+
+
+viewSubmittedCards : List Submission -> Html FrontendMsg
+viewSubmittedCards submissions =
+    Html.div [ id "submitted-cards" ]
+        (List.map
+            (\submission ->
+                Html.div
+                    [ style "padding" "15px"
+                    , style "margin-bottom" "10px"
+                    , style "background-color" "white"
+                    , style "border" "1px solid #ddd"
+                    , style "border-radius" "8px"
+                    ]
+                    [ Html.p [ style "font-size" "16px", style "margin" "0" ] [ text submission.card ] ]
+            )
+            submissions
+        )
+
+
+viewCardButton : Maybe String -> Int -> String -> Html FrontendMsg
+viewCardButton selectedCard index card =
+    let
+        isSelected =
+            selectedCard == Just card
+    in
+    Html.li
+        [ style "margin-bottom" "10px" ]
+        [ Html.button
+            [ onClick (CardSelected card)
+            , id ("card-" ++ String.fromInt index)
+            , style "padding" "15px"
+            , style "width" "100%"
+            , style "text-align" "left"
+            , style "border" (if isSelected then "2px solid #4CAF50" else "1px solid #ccc")
+            , style "background-color" (if isSelected then "#e8f5e9" else "white")
+            , style "border-radius" "4px"
+            , style "cursor" "pointer"
+            , style "font-size" "14px"
+            ]
+            [ text card ]
         ]
 
 

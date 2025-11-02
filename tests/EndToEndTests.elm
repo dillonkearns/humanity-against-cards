@@ -1,4 +1,4 @@
-module EndToEndTests exposing (main, tests)
+module EndToEndTests exposing (main, suite, tests)
 
 import Backend
 import Effect.Browser.Dom as Dom
@@ -12,10 +12,18 @@ import Expect
 import Frontend
 import Html
 import Json.Encode as Encode
+import Test exposing (Test)
 import Test.Html.Query
 import Test.Html.Selector
 import Types exposing (BackendModel, BackendMsg, FrontendModel, FrontendMsg, ToBackend, ToFrontend)
 import Url exposing (Url)
+
+
+suite : Test
+suite =
+    tests
+        |> List.map Effect.Test.toTest
+        |> Test.describe "suite"
 
 
 unsafeUrl : Url
@@ -42,13 +50,109 @@ config =
 
 sampleDeckJson : String
 sampleDeckJson =
-    """{"prompts":["J.K Rowling: Harry Potter and the Chamber of _.","Moms love _."],"answers":["A wildly misguided plan with strong confidence.","Free samples.","Unresolved childhood trauma.","A concerning amount of confidence.","Aggressive finger guns.","The exact wrong energy for this situation.","A solution that creates three new problems.","Getting so angry that you pop a boner.","Oral sex that tastes like urine.","$1.25 per day","$10 bills defaced with anarchist propaganda.","$10,000 worth of silica gel.","$13 worth of Taco Bell","$15 minimum wage.","$16,000 in cash, a kilo of hashish, and eight belly dancers.","$2 beer pitcher night at the base bowling alley.","$20 Tinnies","$20 tinnies","$200/hour","$300 worth of vanilla yogurt."]}"""
+    """{"prompts":["J.K Rowling: Harry Potter and the Chamber of _.","Moms love _."],"answers":["A wildly misguided plan with strong confidence.","Free samples.","Unresolved childhood trauma.","A concerning amount of confidence.","Aggressive finger guns.","The exact wrong energy for this situation.","A solution that creates three new problems.","Getting so angry that you pop a boner.","Oral sex that tastes like urine.","$1.25 per day","$10 bills defaced with anarchist propaganda.","$10,000 worth of silica gel.","$13 worth of Taco Bell","$15 minimum wage.","$16,000 in cash, a kilo of hashish, and eight belly dancers.","$2 beer pitcher night at the base bowling alley.","$20 Tinnies","$20 tinnies","$200/hour","$300 worth of vanilla yogurt.","An unstoppable freight train of poor decisions.","The forbidden snack.","Emotional damage.","A concerning lack of adult supervision.","That one friend who ruins everything.","The audacity.","Chaos incarnate.","A spectacularly bad idea.","Unfiltered confidence.","The consequences of my actions."]}"""
 
 
 tests : List (Effect.Test.EndToEndTest ToBackend FrontendMsg FrontendModel ToFrontend BackendMsg BackendModel)
 tests =
     [ Effect.Test.start
-        "Admin can start game and players receive hands"
+        "Complete round flow: submit, reveal, judge, score"
+        (Effect.Time.millisToPosix 0)
+        config
+        [ Effect.Test.connectFrontend
+            100
+            (Effect.Lamdera.sessionIdFromString "adminSession")
+            "/admin"
+            { width = 800, height = 600 }
+            (\admin ->
+                [ admin.input 100 (Dom.id "deck-json-input") sampleDeckJson
+                , admin.click 100 (Dom.id "load-deck-button")
+                , Effect.Test.connectFrontend
+                    100
+                    (Effect.Lamdera.sessionIdFromString "player1Session")
+                    "/"
+                    { width = 800, height = 600 }
+                    (\player1 ->
+                        [ player1.input 100 (Dom.id "player-name-input") "Alice"
+                        , player1.click 100 (Dom.id "join-game-button")
+                        , Effect.Test.connectFrontend
+                            100
+                            (Effect.Lamdera.sessionIdFromString "player2Session")
+                            "/"
+                            { width = 800, height = 600 }
+                            (\player2 ->
+                                [ player2.input 100 (Dom.id "player-name-input") "Bob"
+                                , player2.click 100 (Dom.id "join-game-button")
+                                , Effect.Test.connectFrontend
+                                    100
+                                    (Effect.Lamdera.sessionIdFromString "player3Session")
+                                    "/"
+                                    { width = 800, height = 600 }
+                                    (\player3 ->
+                                        [ player3.input 100 (Dom.id "player-name-input") "Charlie"
+                                        , player3.click 100 (Dom.id "join-game-button")
+                                        -- Verify Charlie joined successfully
+                                        , player3.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Welcome, Charlie!" ])
+                                        -- Verify admin sees all 3 players before starting
+                                        , admin.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Charlie" ])
+                                        , admin.click 100 (Dom.id "start-game-button")
+
+                                        -- SUBMISSION PHASE
+                                        -- Charlie is the judge (due to Dict.values ordering)
+                                        , player3.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "You are the judge this round!" ])
+
+                                        -- Alice and Bob submit cards
+                                        , player1.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Your Hand:" ])
+                                        , player1.click 100 (Dom.id "card-0")
+                                        , player1.click 100 (Dom.id "submit-card-button")
+                                        , player1.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "✓ Card submitted!" ])
+
+                                        , player2.click 100 (Dom.id "card-0")
+                                        , player2.click 100 (Dom.id "submit-card-button")
+                                        -- After Bob submits, all non-judges have submitted, so auto-transition to reveal
+
+                                        -- REVEAL PHASE (auto-transition after all submit)
+                                        -- Charlie (judge) sees reveal controls
+                                        , player3.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Reveal Card 1" ])
+
+                                        -- Charlie (judge) reveals first card
+                                        , player3.click 100 (Dom.id "reveal-next-button")
+                                        , player1.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "1 of 2 cards revealed" ])
+
+                                        -- Charlie (judge) reveals second card
+                                        , player3.click 100 (Dom.id "reveal-next-button")
+
+                                        -- JUDGING PHASE (auto-transition after all revealed)
+                                        -- Charlie (judge) sees winner selection
+                                        , player3.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Select the Winner!" ])
+
+                                        -- Verify non-judges see all cards
+                                        , player1.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "All cards revealed!" ])
+
+                                        -- Charlie (judge) selects winner
+                                        , player3.click 100 (Dom.id "select-winner-0")
+
+                                        -- TODO: Verify score update when we add score display
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        ]
+    , Effect.Test.start
+        "Players can submit cards after game starts"
         (Effect.Time.millisToPosix 0)
         config
         [ Effect.Test.connectFrontend
@@ -76,12 +180,39 @@ tests =
                                 [ player2.input 100 (Dom.id "player-name-input") "Bob"
                                 , player2.click 100 (Dom.id "join-game-button")
                                 , admin.click 100 (Dom.id "start-game-button")
+
+                                -- Verify judge sees the prompt
+                                , player1.checkView 100
+                                    (Test.Html.Query.find [ Test.Html.Selector.id "current-prompt" ]
+                                        >> Test.Html.Query.has [ Test.Html.Selector.text "J.K Rowling: Harry Potter and the Chamber of _." ]
+                                    )
                                 , player1.checkView 100
                                     (Test.Html.Query.has [ Test.Html.Selector.text "You are the judge this round!" ])
+
+                                -- Verify non-judge sees prompt and cards
+                                , player2.checkView 100
+                                    (Test.Html.Query.find [ Test.Html.Selector.id "current-prompt" ]
+                                        >> Test.Html.Query.has [ Test.Html.Selector.text "J.K Rowling: Harry Potter and the Chamber of _." ]
+                                    )
                                 , player2.checkView 100
                                     (Test.Html.Query.find [ Test.Html.Selector.id "player-hand" ]
-                                        >> Test.Html.Query.findAll [ Test.Html.Selector.tag "li" ]
+                                        >> Test.Html.Query.findAll [ Test.Html.Selector.tag "button" ]
                                         >> Test.Html.Query.count (Expect.equal 10)
+                                    )
+
+                                -- Player2 selects and submits a card
+                                , player2.click 100 (Dom.id "card-0")
+                                , player2.click 100 (Dom.id "submit-card-button")
+
+                                -- With only 2 players (1 judge, 1 non-judge), submission auto-transitions to reveal
+                                -- Verify we're now in reveal phase
+                                , player2.checkView 100
+                                    (Test.Html.Query.has [ Test.Html.Selector.text "Revealing cards..." ])
+
+                                -- Verify judge sees reveal button
+                                , player1.checkView 100
+                                    (Test.Html.Query.find [ Test.Html.Selector.id "reveal-next-button" ]
+                                        >> Test.Html.Query.has [ Test.Html.Selector.text "Reveal Card 1" ]
                                     )
                                 ]
                             )
