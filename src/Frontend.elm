@@ -328,6 +328,20 @@ viewPlayerLobby player =
         ]
 
 
+getJudgeName : Maybe PlayerToken -> List Player -> String
+getJudgeName maybeJudgeToken players =
+    case maybeJudgeToken of
+        Just judgeToken ->
+            players
+                |> List.filter (\p -> p.token == judgeToken)
+                |> List.head
+                |> Maybe.map .name
+                |> Maybe.withDefault "the judge"
+
+        Nothing ->
+            "the judge"
+
+
 viewPlayerGame : Player -> Model -> Html FrontendMsg
 viewPlayerGame player model =
     let
@@ -341,9 +355,36 @@ viewPlayerGame player model =
 
                 _ ->
                     Nothing
+
+        headerText =
+            case roundPhase of
+                Just (SubmissionPhase _) ->
+                    if isJudge then
+                        player.name ++ " - You're judging this round"
+                    else
+                        let
+                            judgeName =
+                                getJudgeName model.currentJudge model.playersList
+                        in
+                        player.name ++ " - Pick your best card for " ++ judgeName
+
+                Just (RevealPhase _) ->
+                    if isJudge then
+                        player.name ++ " - Reveal the answers"
+                    else
+                        "Watch the judge reveal..."
+
+                Just (JudgingPhase _) ->
+                    if isJudge then
+                        player.name ++ " - Pick the winner"
+                    else
+                        "Waiting for the judge's decision..."
+
+                Nothing ->
+                    "Welcome, " ++ player.name ++ "!"
     in
     Html.div []
-        [ Html.h2 [] [ text ("Welcome, " ++ player.name ++ "!") ]
+        [ Html.h2 [] [ text headerText ]
         , case roundPhase of
             Nothing ->
                 Html.p [] [ text "Round starting..." ]
