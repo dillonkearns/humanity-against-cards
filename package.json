@@ -1,0 +1,7 @@
+{
+  "name": "humanity-against-cards",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "elm-test --compiler `which lamdera`"
+  }
+}
