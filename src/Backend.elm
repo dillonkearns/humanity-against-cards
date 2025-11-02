@@ -29,7 +29,7 @@ app_ =
 
 init : ( Model, Command BackendOnly ToFrontend BackendMsg )
 init =
-    ( { counter = 0 }, Command.none )
+    ( { counter = 0, deck = Nothing }, Command.none )
 
 
 update : BackendMsg -> Model -> ( Model, Command BackendOnly ToFrontend BackendMsg )
@@ -61,6 +61,11 @@ updateFromFrontend sessionId clientId msg model =
             in
             ( { model | counter = newCounter }
             , Effect.Lamdera.broadcast (CounterNewValue newCounter clientId)
+            )
+
+        LoadDeck deck ->
+            ( { model | deck = Just deck }
+            , Effect.Lamdera.broadcast (DeckLoaded deck)
             )
 
 
