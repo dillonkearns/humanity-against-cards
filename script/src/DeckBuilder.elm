@@ -17,54 +17,66 @@ run : Script
 run =
     Script.withCliOptions program
         (\{ promptCount, answerCount } ->
-            BackendTask.File.jsonFile
-                (Decode.field "white" (Decode.list Decode.string)
-                    |> Decode.andThen
-                        (\whites ->
-                            Decode.field "black" (Decode.list blackCardDecoder)
-                                |> Decode.map (\blacks -> { whites = whites, blacks = blacks })
-                        )
-                )
-                "../../../crhallberg/json-against-humanity/cah-all-compact.json"
+            loadCahCards
                 |> BackendTask.allowFatal
                 |> BackendTask.andThen
                     (\{ whites, blacks } ->
                         let
-                            -- Filter to only pick=1 prompts
-                            singlePickBlacks =
-                                blacks
-                                    |> List.filter (\card -> card.pick == 1)
-                                    |> List.map .text
-
-                            -- Convert _ to ____
-                            normalizedPrompts =
-                                singlePickBlacks
-                                    |> List.map (String.replace "_" "____")
-
-                            -- Shuffle and take
-                            promptsGenerator =
-                                Random.List.shuffle normalizedPrompts
-                                    |> Random.map (List.take promptCount)
-
-                            answersGenerator =
-                                Random.List.shuffle whites
-                                    |> Random.map (List.take answerCount)
+                            singleBlankPrompts : List String
+                            singleBlankPrompts =
+                                filterSingleBlankPrompts blacks
                         in
-                        BackendTask.map2
-                            (\selectedPrompts selectedAnswers ->
-                                Encode.object
-                                    [ ( "prompts", Encode.list Encode.string selectedPrompts )
-                                    , ( "answers", Encode.list Encode.string selectedAnswers )
-                                    ]
-                            )
-                            (BackendTask.Random.generate promptsGenerator)
-                            (BackendTask.Random.generate answersGenerator)
+                        BackendTask.map2 buildDeckJson
+                            (selectRandomCards promptCount singleBlankPrompts)
+                            (selectRandomCards answerCount whites)
                             |> BackendTask.andThen
                                 (\outputJson ->
                                     Script.log (Encode.encode 2 outputJson)
                                 )
                     )
         )
+
+
+{-| Load the Cards Against Humanity JSON file from the local repo
+-}
+loadCahCards =
+    BackendTask.File.jsonFile
+        (Decode.field "white" (Decode.list Decode.string)
+            |> Decode.andThen
+                (\whites ->
+                    Decode.field "black" (Decode.list blackCardDecoder)
+                        |> Decode.map (\blacks -> { whites = whites, blacks = blacks })
+                )
+        )
+        "../../../crhallberg/json-against-humanity/cah-all-compact.json"
+
+
+{-| Filter black cards to only include single-blank prompts (pick=1)
+-}
+filterSingleBlankPrompts : List BlackCard -> List String
+filterSingleBlankPrompts blacks =
+    blacks
+        |> List.filter (\card -> card.pick == 1)
+        |> List.map .text
+
+
+{-| Shuffle cards and select a random subset
+-}
+selectRandomCards : Int -> List String -> BackendTask error (List String)
+selectRandomCards count cards =
+    Random.List.shuffle cards
+        |> Random.map (List.take count)
+        |> BackendTask.Random.generate
+
+
+{-| Build the final JSON output in our deck format
+-}
+buildDeckJson : List String -> List String -> Encode.Value
+buildDeckJson prompts answers =
+    Encode.object
+        [ ( "prompts", Encode.list Encode.string prompts )
+        , ( "answers", Encode.list Encode.string answers )
+        ]
 
 
 type alias BlackCard =

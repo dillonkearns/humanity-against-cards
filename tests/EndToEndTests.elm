@@ -41,7 +41,7 @@ config =
 
 sampleDeckJson : String
 sampleDeckJson =
-    """{"prompts":["J.K Rowling: Harry Potter and the Chamber of ____.","Moms love ____."],"answers":["A wildly misguided plan with strong confidence.","Free samples."]}"""
+    """{"prompts":["J.K Rowling: Harry Potter and the Chamber of _.","Moms love _."],"answers":["A wildly misguided plan with strong confidence.","Free samples."]}"""
 
 
 tests : List (Effect.Test.EndToEndTest ToBackend FrontendMsg FrontendModel ToFrontend BackendMsg BackendModel)
@@ -90,7 +90,7 @@ tests =
                 , admin.click 100 (Dom.id "load-deck-button")
                 , admin.checkView 100
                     (Test.Html.Query.find [ Test.Html.Selector.id "prompts-list" ]
-                        >> Test.Html.Query.has [ Test.Html.Selector.text "J.K Rowling: Harry Potter and the Chamber of ____." ]
+                        >> Test.Html.Query.has [ Test.Html.Selector.text "J.K Rowling: Harry Potter and the Chamber of _." ]
                     )
                 , admin.checkView 100
                     (Test.Html.Query.find [ Test.Html.Selector.id "answers-list" ]
