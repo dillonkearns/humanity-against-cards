@@ -82,6 +82,9 @@ init url key =
       , playerNameInput = ""
       , joinedPlayer = Nothing
       , playersList = []
+      , gameState = Lobby
+      , myHand = []
+      , currentJudge = Nothing
       }
     , Command.none
     )
@@ -162,6 +165,9 @@ update msg model =
                 , Effect.Lamdera.sendToBackend (JoinGame token trimmedName)
                 )
 
+        StartGameClicked ->
+            ( model, Effect.Lamdera.sendToBackend StartGame )
+
 
 -- UPDATE FROM BACKEND
 
@@ -180,6 +186,23 @@ updateFromBackend msg model =
 
         PlayersListUpdated players ->
             ( { model | playersList = players }, Command.none )
+
+        GameStarted { yourHand, currentJudge } ->
+            ( { model
+                | myHand = yourHand
+                , currentJudge = Just currentJudge
+                , gameState =
+                    Playing
+                        { currentJudge = currentJudge
+                        , remainingAnswers = []  -- We don't track this on frontend
+                        , remainingPrompts = []
+                        }
+              }
+            , Command.none
+            )
+
+        GameStateUpdated gameState ->
+            ( { model | gameState = gameState }, Command.none )
 
 
 -- VIEW
@@ -204,7 +227,15 @@ viewPlayer model =
                 viewJoinForm model
 
             Just player ->
-                viewPlayerLobby player
+                case model.gameState of
+                    Lobby ->
+                        viewPlayerLobby player
+
+                    Playing _ ->
+                        viewPlayerHand player model.myHand model.currentJudge
+
+                    Ended ->
+                        Html.div [] [ text "Game ended!" ]
         ]
 
 
@@ -244,11 +275,43 @@ viewPlayerLobby player =
         ]
 
 
+viewPlayerHand : Player -> List String -> Maybe PlayerToken -> Html FrontendMsg
+viewPlayerHand player hand maybeJudge =
+    let
+        isJudge =
+            maybeJudge == Just player.token
+    in
+    Html.div []
+        [ Html.h2 [] [ text ("Welcome, " ++ player.name ++ "!") ]
+        , Html.p []
+            [ text
+                (if isJudge then
+                    "You are the judge this round!"
+
+                 else
+                    "Your hand:"
+                )
+            ]
+        , if isJudge then
+            Html.div [] [ text "Judge view coming soon..." ]
+
+          else
+            Html.ul [ id "player-hand" ]
+                (List.map
+                    (\card ->
+                        Html.li [] [ text card ]
+                    )
+                    hand
+                )
+        ]
+
+
 viewAdmin : Model -> Html FrontendMsg
 viewAdmin model =
     Html.div [ style "padding" "30px" ]
         [ Html.h1 [] [ text "Admin Console" ]
         , viewPlayersList model.playersList
+        , viewGameControls model
         , Html.h2 [] [ text "Load Deck" ]
         , Html.textarea
             [ placeholder "Paste deck JSON here..."
@@ -275,6 +338,45 @@ viewAdmin model =
             Just deck ->
                 viewLoadedDeck deck
         ]
+
+
+viewGameControls : Model -> Html FrontendMsg
+viewGameControls model =
+    case model.gameState of
+        Lobby ->
+            let
+                canStart =
+                    not (List.isEmpty model.playersList) && model.loadedDeck /= Nothing
+            in
+            Html.div [ style "margin-bottom" "30px" ]
+                [ Html.h2 [] [ text "Game Controls" ]
+                , Html.button
+                    [ onClick StartGameClicked
+                    , id "start-game-button"
+                    , style "padding" "10px 20px"
+                    , style "font-size" "16px"
+                    , disabled (not canStart)
+                    ]
+                    [ text "Start Game" ]
+                , if not canStart then
+                    Html.p [ style "color" "#666" ]
+                        [ text "Need at least one player and a loaded deck to start" ]
+
+                  else
+                    Html.text ""
+                ]
+
+        Playing _ ->
+            Html.div [ style "margin-bottom" "30px" ]
+                [ Html.h2 [] [ text "Game Controls" ]
+                , Html.p [] [ text "Game in progress..." ]
+                ]
+
+        Ended ->
+            Html.div [ style "margin-bottom" "30px" ]
+                [ Html.h2 [] [ text "Game Controls" ]
+                , Html.p [] [ text "Game ended" ]
+                ]
 
 
 viewPlayersList : List Player -> Html FrontendMsg
