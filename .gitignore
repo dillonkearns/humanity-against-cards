@@ -2,3 +2,5 @@
 elm-stuff/
 script/.elm-pages
 index.html
+node_modules/
+public/styles.css

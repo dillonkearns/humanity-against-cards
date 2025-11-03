@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* Custom theme configuration for Tailwind v4 */
+@theme {
+  /* Mobile-first color palette - fun and playful */
+  --color-primary: #4f46e5; /* Indigo */
+  --color-secondary: #ec4899; /* Pink */
+  --color-success: #10b981; /* Green */
+  --color-danger: #ef4444; /* Red */
+  --color-warning: #f59e0b; /* Amber */
+
+  /* Spacing optimized for touch targets (min 44px) */
+  --spacing-touch: 2.75rem; /* 44px */
+
+  /* Font sizes optimized for mobile readability */
+  --font-size-mobile-body: 1rem;
+  --font-size-mobile-heading: 1.5rem;
+}
+
+/* Base styles */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Touch-friendly button base */
+button {
+  min-height: 44px;
+  min-width: 44px;
+}

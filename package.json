@@ -2,6 +2,13 @@
   "name": "humanity-against-cards",
   "version": "1.0.0",
   "scripts": {
-    "test": "elm-test --compiler `which lamdera`"
+    "test": "elm-test --compiler `which lamdera`",
+    "css:build": "postcss src/styles.css -o public/styles.css",
+    "css:watch": "postcss src/styles.css -o public/styles.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0-alpha.25",
+    "postcss": "^8.4.47",
+    "postcss-cli": "^11.0.0"
   }
 }
