@@ -482,7 +482,7 @@ updateFromFrontend sessionId clientId msg model =
                                     |> List.map (\p -> ( tokenToString p.token, p ))
                                     |> Dict.fromList
 
-                            -- Start first round with first prompt
+                            -- Start in NextRound phase (reuse same logic as between rounds)
                             ( firstPrompt, restPrompts ) =
                                 case deck.prompts of
                                     prompt :: rest ->
@@ -492,9 +492,9 @@ updateFromFrontend sessionId clientId msg model =
                                         ( "", [] )
 
                             initialRoundPhase =
-                                SubmissionPhase
-                                    { prompt = firstPrompt
-                                    , submissions = []
+                                NextRound
+                                    { nextPrompt = firstPrompt
+                                    , nextJudge = firstJudge
                                     }
 
                             newGameState =
@@ -517,7 +517,6 @@ updateFromFrontend sessionId clientId msg model =
                                                             (GameStarted
                                                                 { yourHand = player.hand
                                                                 , currentJudge = firstJudge
-                                                                , initialPrompt = firstPrompt
                                                                 }
                                                             )
                                                         )
@@ -528,7 +527,9 @@ updateFromFrontend sessionId clientId msg model =
 
                             commands =
                                 Command.batch
-                                    (Effect.Lamdera.broadcast (GameStateUpdated newGameState) :: playerCommands)
+                                    ([ Effect.Lamdera.broadcast (GameStateUpdated newGameState)
+                                     , Effect.Lamdera.broadcast (RoundPhaseUpdated initialRoundPhase)
+                                     ] ++ playerCommands)
                         in
                         ( { model
                             | players = newPlayers

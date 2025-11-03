@@ -99,8 +99,20 @@ tests =
                                             (Test.Html.Query.has [ Test.Html.Selector.text "Charlie" ])
                                         , admin.click 100 (Dom.id "start-game-button")
 
+                                        -- FIRST ROUND STARTS IN NEXTROUND PHASE
+                                        -- Alice (first judge) sees prompt preview and Accept/Veto buttons
+                                        , player1.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "You're the judge for the next round!" ])
+                                        , player1.checkView 100
+                                            (Test.Html.Query.find [ Test.Html.Selector.id "accept-prompt-button" ]
+                                                >> Test.Html.Query.has [ Test.Html.Selector.text "✓ Accept" ]
+                                            )
+
+                                        -- Alice accepts the prompt to start the round
+                                        , player1.click 100 (Dom.id "accept-prompt-button")
+
                                         -- SUBMISSION PHASE
-                                        -- Alice is the judge (with clientId tokens, first connection wins)
+                                        -- Now Alice sees judge UI for submission phase
                                         , player1.checkView 100
                                             (Test.Html.Query.has [ Test.Html.Selector.text "You are the judge this round!" ])
 
@@ -191,6 +203,10 @@ tests =
                                         [ player3.input 100 (Dom.id "player-name-input") "Charlie"
                                         , player3.click 100 (Dom.id "join-game-button")
                                         , admin.click 100 (Dom.id "start-game-button")
+
+                                        -- FIRST ROUND STARTS IN NEXTROUND PHASE
+                                        -- Alice accepts the prompt to start
+                                        , player1.click 100 (Dom.id "accept-prompt-button")
 
                                         -- FIRST ROUND: Alice is judge
                                         , player1.checkView 100
@@ -340,6 +356,9 @@ tests =
                                         , player3.click 100 (Dom.id "join-game-button")
                                         , admin.click 100 (Dom.id "start-game-button")
 
+                                        -- Alice accepts first prompt
+                                        , player1.click 100 (Dom.id "accept-prompt-button")
+
                                         -- Complete first round
                                         , player2.click 100 (Dom.id "card-0")
                                         , player2.click 100 (Dom.id "submit-card-button")
@@ -409,6 +428,9 @@ tests =
                                 , player2.click 100 (Dom.id "join-game-button")
                                 , admin.click 100 (Dom.id "start-game-button")
 
+                                -- Alice accepts first prompt
+                                , player1.click 100 (Dom.id "accept-prompt-button")
+
                                 -- Complete one round
                                 , player2.click 100 (Dom.id "card-0")
                                 , player2.click 100 (Dom.id "submit-card-button")
@@ -464,6 +486,9 @@ tests =
                                 [ player2.input 100 (Dom.id "player-name-input") "Bob"
                                 , player2.click 100 (Dom.id "join-game-button")
                                 , admin.click 100 (Dom.id "start-game-button")
+
+                                -- Alice accepts first prompt
+                                , player1.click 100 (Dom.id "accept-prompt-button")
 
                                 -- Verify judge sees the prompt
                                 , player1.checkView 100
@@ -682,6 +707,9 @@ tests =
 
                                 -- Start the game
                                 , admin.click 100 (Dom.id "start-game-button")
+
+                                -- Alice accepts first prompt
+                                , player1.click 100 (Dom.id "accept-prompt-button")
 
                                 -- Verify game has started for players
                                 , player1.checkView 100

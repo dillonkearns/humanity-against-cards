@@ -165,7 +165,6 @@ type ToFrontend
     | GameStarted
         { yourHand : List String
         , currentJudge : PlayerToken
-        , initialPrompt : String
         }
     | GameStateUpdated GameState
     | RoundPhaseUpdated RoundPhase

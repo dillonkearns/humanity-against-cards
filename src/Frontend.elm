@@ -247,28 +247,12 @@ updateFromBackend msg model =
         PlayersListUpdated players ->
             ( { model | playersList = players }, Command.none )
 
-        GameStarted { yourHand, currentJudge, initialPrompt } ->
-            let
-                -- Create initial round phase with the prompt
-                initialRoundPhase =
-                    SubmissionPhase
-                        { prompt = initialPrompt
-                        , submissions = []
-                        }
-
-                updatedGameState =
-                    Playing
-                        { currentJudge = currentJudge
-                        , remainingAnswers = []
-                        , remainingPrompts = []
-                        , roundPhase = Just initialRoundPhase
-                        }
-            in
+        GameStarted { yourHand, currentJudge } ->
+            -- Game started, hand received. RoundPhaseUpdated will set the phase.
             ( { model
                 | myHand = yourHand
                 , currentJudge = Just currentJudge
-                , gameState = updatedGameState
-                , hasSubmitted = False  -- Reset submission status for new round
+                , hasSubmitted = False
               }
             , Command.none
             )
