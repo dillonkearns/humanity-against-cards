@@ -100,46 +100,44 @@ tests =
                                         , admin.click 100 (Dom.id "start-game-button")
 
                                         -- SUBMISSION PHASE
-                                        -- Charlie is the judge (due to Dict.values ordering)
-                                        , player3.checkView 100
+                                        -- Alice is the judge (with clientId tokens, first connection wins)
+                                        , player1.checkView 100
                                             (Test.Html.Query.has [ Test.Html.Selector.text "You are the judge this round!" ])
 
-                                        -- Alice and Bob submit cards
-                                        , player1.checkView 100
-                                            (Test.Html.Query.has [ Test.Html.Selector.text "Your Hand:" ])
-                                        , player1.click 100 (Dom.id "card-0")
-                                        , player1.click 100 (Dom.id "submit-card-button")
-                                        , player1.checkView 100
-                                            (Test.Html.Query.has [ Test.Html.Selector.text "✓ Card submitted!" ])
-
+                                        -- Bob and Charlie submit cards
                                         , player2.click 100 (Dom.id "card-0")
                                         , player2.click 100 (Dom.id "submit-card-button")
-                                        -- After Bob submits, all non-judges have submitted, so auto-transition to reveal
+                                        , player2.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "✓ Card submitted!" ])
+
+                                        , player3.click 100 (Dom.id "card-0")
+                                        , player3.click 100 (Dom.id "submit-card-button")
+                                        -- After Charlie submits, all non-judges have submitted, so auto-transition to reveal
 
                                         -- REVEAL PHASE (auto-transition after all submit)
-                                        -- Charlie (judge) sees reveal controls
-                                        , player3.checkView 100
+                                        -- Alice (judge) sees reveal controls
+                                        , player1.checkView 100
                                             (Test.Html.Query.has [ Test.Html.Selector.text "Reveal Card 1" ])
 
-                                        -- Charlie (judge) reveals first card
-                                        , player3.click 100 (Dom.id "reveal-next-button")
-                                        , player1.checkView 100
+                                        -- Alice (judge) reveals first card
+                                        , player1.click 100 (Dom.id "reveal-next-button")
+                                        , player2.checkView 100
                                             (Test.Html.Query.has [ Test.Html.Selector.text "1 of 2 cards revealed" ])
 
-                                        -- Charlie (judge) reveals second card
-                                        , player3.click 100 (Dom.id "reveal-next-button")
+                                        -- Alice (judge) reveals second card
+                                        , player1.click 100 (Dom.id "reveal-next-button")
 
                                         -- JUDGING PHASE (auto-transition after all revealed)
-                                        -- Charlie (judge) sees winner selection
-                                        , player3.checkView 100
+                                        -- Alice (judge) sees winner selection
+                                        , player1.checkView 100
                                             (Test.Html.Query.has [ Test.Html.Selector.text "Select the Winner!" ])
 
                                         -- Verify non-judges see all cards
-                                        , player1.checkView 100
+                                        , player2.checkView 100
                                             (Test.Html.Query.has [ Test.Html.Selector.text "All cards revealed!" ])
 
-                                        -- Charlie (judge) selects winner
-                                        , player3.click 100 (Dom.id "select-winner-0")
+                                        -- Alice (judge) selects winner
+                                        , player1.click 100 (Dom.id "select-winner-0")
 
                                         -- WINNER ANNOUNCEMENT
                                         -- All players see the winner announcement

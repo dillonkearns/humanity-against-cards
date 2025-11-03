@@ -147,17 +147,19 @@ update msg model =
             ( { model | playerNameInput = input }, Command.none )
 
         JoinGameClicked ->
-            -- Generate a token using current time
-            ( model
-            , Effect.Task.perform
-                (\time -> GotPlayerToken (PlayerToken (String.fromInt (Time.posixToMillis time))))
-                Effect.Time.now
-            )
-
-        GotPlayerToken token ->
             let
                 trimmedName =
                     String.trim model.playerNameInput
+
+                -- Use clientId as basis for token - it's unique per connection
+                token =
+                    case model.clientId of
+                        Just clientId ->
+                            PlayerToken (Effect.Lamdera.clientIdToString clientId)
+
+                        Nothing ->
+                            -- Fallback - use timestamp-like approach
+                            PlayerToken (String.fromInt model.counter ++ "-" ++ trimmedName)
             in
             if String.isEmpty trimmedName then
                 ( model, Command.none )

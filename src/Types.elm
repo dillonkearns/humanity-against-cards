@@ -121,7 +121,6 @@ type FrontendMsg
     | LoadDeckClicked
     | PlayerNameInputChanged String
     | JoinGameClicked
-    | GotPlayerToken PlayerToken
     | StartGameClicked
     | CardSelected String
     | SubmitCardClicked
