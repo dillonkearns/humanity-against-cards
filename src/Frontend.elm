@@ -379,9 +379,7 @@ view model =
 viewPlayer : Model -> Html FrontendMsg
 viewPlayer model =
     Html.div []
-        [ Html.div [ class "app-header" ]
-            [ Html.h1 [ class "app-title" ] [ text "Humanity Against Cards" ]
-            ]
+        [ viewAppHeader "Humanity Against Cards"
         , Html.div [ style "padding" "30px" ]
             [ case model.joinedPlayer of
             Nothing ->
@@ -543,12 +541,9 @@ viewJoinForm model =
 
 viewPlayerLobby : Player -> Html FrontendMsg
 viewPlayerLobby player =
-    Html.div [ class "lobby-container" ]
-        [ Html.h2 [ class "lobby-title" ] [ text ("Welcome, " ++ player.name ++ "!") ]
-        , Html.p [ class "lobby-message", id "player-joined-message" ]
-            [ text "Waiting for game to start"
-            , Html.span [ class "waiting-indicator" ] [ text "..." ]
-            ]
+    viewLobbyContainer
+        [ viewLobbyTitle ("Welcome, " ++ player.name ++ "!")
+        , Html.p [ id "player-joined-message" ] [ viewLobbyMessage "Waiting for game to start" ]
         ]
 
 
@@ -663,16 +658,12 @@ viewPlayerGame player model =
                     "Welcome, " ++ player.name ++ "!"
     in
     Html.div []
-        [ Html.h2 [ class "app-subtitle" ] [ text headerText ]
+        [ viewSubtitle headerText
         , viewScoreboard model.playersList model.currentJudge
         , case roundPhase of
             Nothing ->
-                Html.div [ class "lobby-container" ]
-                    [ Html.p [ class "lobby-message" ]
-                        [ text "Round starting"
-                        , Html.span [ class "waiting-indicator" ] [ text "..." ]
-                        ]
-                    ]
+                viewLobbyContainer
+                    [ viewLobbyMessage "Round starting" ]
 
             Just phase ->
                 viewRoundPhase player model isJudge phase
@@ -686,11 +677,7 @@ viewRoundPhase player model isJudge roundPhase =
             Html.div []
                 [ Html.div [ style "margin-bottom" "20px" ]
                     [ Html.h3 [ style "margin-bottom" "10px" ] [ text "Current Prompt:" ]
-                    , Html.div
-                        [ class "prompt-card"
-                        , id "current-prompt"
-                        ]
-                        [ text prompt ]
+                    , viewPromptCard [ id "current-prompt" ] prompt
                     ]
                 , if isJudge then
                     Html.div []
@@ -706,11 +693,7 @@ viewRoundPhase player model isJudge roundPhase =
             Html.div []
                 [ Html.div [ style "margin-bottom" "20px" ]
                     [ Html.h3 [ style "margin-bottom" "10px" ] [ text "Current Prompt:" ]
-                    , Html.div
-                        [ class "prompt-card"
-                        , id "current-prompt"
-                        ]
-                        [ text prompt ]
+                    , viewPromptCard [ id "current-prompt" ] prompt
                     ]
                 , if isJudge then
                     viewJudgeReveal submissions revealedCount
@@ -727,23 +710,16 @@ viewRoundPhase player model isJudge roundPhase =
             Html.div []
                 [ Html.div [ style "margin-bottom" "20px" ]
                     [ Html.h3 [ style "margin-bottom" "10px" ] [ text "Current Prompt:" ]
-                    , Html.div
-                        [ class "prompt-card"
-                        , id "current-prompt"
-                        ]
-                        [ text prompt ]
+                    , viewPromptCard [ id "current-prompt" ] prompt
                     ]
                 , if isJudge then
                     viewJudgeSelection prompt submissions
 
                   else
                     Html.div []
-                        [ Html.div [ class "lobby-container" ]
-                            [ Html.h3 [ class "lobby-title" ] [ text "All cards revealed!" ]
-                            , Html.p [ class "lobby-message" ]
-                                [ text "Waiting for judge to select winner"
-                                , Html.span [ class "waiting-indicator" ] [ text "..." ]
-                                ]
+                        [ viewLobbyContainer
+                            [ viewLobbyTitle "All cards revealed!"
+                            , viewLobbyMessage "Waiting for judge to select winner"
                             ]
                         , viewSubmittedCardsWithReactions submissions reactions model.playerToken
                         ]
@@ -766,12 +742,9 @@ viewRoundPhase player model isJudge roundPhase =
                     viewJudgePromptPreview nextPrompt
 
                   else
-                    Html.div [ class "lobby-container" ]
-                        [ Html.h3 [ class "lobby-title" ] [ text "Round Complete!" ]
-                        , Html.p [ class "lobby-message" ]
-                            [ text "Waiting for the next judge to start the next round"
-                            , Html.span [ class "waiting-indicator" ] [ text "..." ]
-                            ]
+                    viewLobbyContainer
+                        [ viewLobbyTitle "Round Complete!"
+                        , viewLobbyMessage "Waiting for the next judge to start the next round"
                         ]
                 ]
 
@@ -794,11 +767,7 @@ viewJudgePromptPreview prompt =
             [ Html.h3
                 [ style "margin-bottom" "10px" ]
                 [ text "Next Prompt:" ]
-            , Html.div
-                [ class "prompt-card"
-                , id "next-prompt-preview"
-                ]
-                [ text prompt ]
+            , viewPromptCard [ id "next-prompt-preview" ] prompt
             ]
         , Html.div
             [ style "display" "flex"
@@ -1125,11 +1094,99 @@ viewWinnerAnnouncement winnerToken winningCard players =
         ]
 
 
+-- View Helpers using Tailwind classes
+
+viewAppHeader : String -> Html msg
+viewAppHeader title =
+    Html.div
+        [ style "background-color" "#000000"
+        , style "color" "#ffffff"
+        , style "padding" "20px 30px"
+        , style "margin-bottom" "20px"
+        , style "box-shadow" "0 2px 8px rgba(0, 0, 0, 0.1)"
+        ]
+        [ Html.h1
+            [ style "font-size" "32px"
+            , style "font-weight" "700"
+            , style "margin" "0"
+            ]
+            [ text title ]
+        ]
+
+
+viewSubtitle : String -> Html msg
+viewSubtitle subtitle =
+    Html.h2
+        [ style "font-size" "24px"
+        , style "font-weight" "600"
+        , style "margin" "10px 0"
+        , style "color" "#1f2937"
+        ]
+        [ text subtitle ]
+
+
+viewLobbyContainer : List (Html msg) -> Html msg
+viewLobbyContainer content =
+    Html.div
+        [ style "text-align" "center"
+        , style "padding" "60px 30px"
+        , style "max-width" "600px"
+        , style "margin" "0 auto"
+        ]
+        content
+
+
+viewLobbyTitle : String -> Html msg
+viewLobbyTitle title =
+    Html.h3
+        [ style "font-size" "32px"
+        , style "font-weight" "700"
+        , style "margin-bottom" "20px"
+        , style "color" "#1f2937"
+        ]
+        [ text title ]
+
+
+viewLobbyMessage : String -> Html msg
+viewLobbyMessage message =
+    Html.p
+        [ style "font-size" "20px"
+        , style "color" "#6b7280"
+        , style "margin-bottom" "30px"
+        ]
+        [ text message
+        , Html.span [ class "animate-pulse-slow", style "display" "inline-block" ] [ text "..." ]
+        ]
+
+
 viewCard : List (Html.Attribute msg) -> String -> Html msg
 viewCard attrs cardText =
     Html.div
-        (class "card-content" :: attrs)
+        ([ style "font-weight" "700"
+         , style "font-size" "21px"
+         , style "line-height" "29px"
+         , style "padding" "20px"
+         , style "border" "2px solid #1f2937"
+         , style "border-radius" "12px"
+         , style "background-color" "white"
+         , style "color" "#000000"
+         ] ++ attrs)
         [ text cardText ]
+
+
+viewPromptCard : List (Html.Attribute msg) -> String -> Html msg
+viewPromptCard attrs promptText =
+    Html.div
+        ([ style "font-weight" "700"
+         , style "font-size" "21px"
+         , style "line-height" "29px"
+         , style "padding" "20px"
+         , style "border" "2px solid #ffffff"
+         , style "border-radius" "12px"
+         , style "background-color" "#000000"
+         , style "color" "#ffffff"
+         ] ++ attrs)
+        [ text promptText ]
 
 
 viewCardButton : Maybe String -> Int -> String -> Html FrontendMsg
@@ -1143,12 +1200,17 @@ viewCardButton selectedCard index card =
         [ Html.button
             [ onClick (CardSelected card)
             , id ("card-" ++ String.fromInt index)
-            , class "card-content"
+            , style "font-weight" "700"
+            , style "font-size" "21px"
+            , style "line-height" "29px"
+            , style "padding" "20px"
+            , style "border-radius" "12px"
             , style "width" "100%"
             , style "text-align" "left"
             , style "border" (if isSelected then "3px solid #4CAF50" else "2px solid #1f2937")
             , style "background-color" (if isSelected then "#e8f5e9" else "white")
             , style "cursor" "pointer"
+            , style "color" "#000000"
             ]
             [ text card ]
         ]
@@ -1157,9 +1219,7 @@ viewCardButton selectedCard index card =
 viewAdmin : Model -> Html FrontendMsg
 viewAdmin model =
     Html.div []
-        [ Html.div [ class "app-header" ]
-            [ Html.h1 [ class "app-title" ] [ text "Admin Console" ]
-            ]
+        [ viewAppHeader "Admin Console"
         , Html.div [ style "padding" "30px" ]
             [ viewPlayersList model.playersList
         , viewGameControls model
