@@ -325,6 +325,12 @@ updateFromFrontend sessionId clientId msg model =
                     -- Not playing, ignore
                     ( model, Command.none )
 
+        EndGame ->
+            -- End the current game and return to lobby
+            ( { model | gameState = Ended }
+            , Effect.Lamdera.broadcast (GameStateUpdated Ended)
+            )
+
         StartGame ->
             case model.deck of
                 Nothing ->
@@ -399,7 +405,8 @@ updateFromFrontend sessionId clientId msg model =
                                         )
 
                             commands =
-                                Command.batch playerCommands
+                                Command.batch
+                                    (Effect.Lamdera.broadcast (GameStateUpdated newGameState) :: playerCommands)
                         in
                         ( { model
                             | players = newPlayers

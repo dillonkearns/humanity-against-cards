@@ -167,6 +167,9 @@ update msg model =
         StartGameClicked ->
             ( model, Effect.Lamdera.sendToBackend StartGame )
 
+        EndGameClicked ->
+            ( model, Effect.Lamdera.sendToBackend EndGame )
+
         CardSelected card ->
             ( { model | selectedCard = Just card }, Command.none )
 
@@ -336,7 +339,140 @@ viewPlayer model =
                         viewPlayerGame player model
 
                     Ended ->
-                        Html.div [] [ text "Game ended!" ]
+                        viewGameEnded model.playersList
+        ]
+
+
+viewGameEnded : List Player -> Html FrontendMsg
+viewGameEnded players =
+    let
+        sortedPlayers =
+            List.sortBy (\p -> -p.score) players
+
+        winner =
+            List.head sortedPlayers
+    in
+    Html.div
+        [ style "text-align" "center"
+        , style "padding" "40px"
+        ]
+        [ Html.h2
+            [ style "font-size" "36px"
+            , style "margin-bottom" "20px"
+            ]
+            [ text "🎉 Game Over! 🎉" ]
+        , case winner of
+            Just w ->
+                if w.score > 0 then
+                    Html.div
+                        [ style "margin-bottom" "40px" ]
+                        [ Html.div
+                            [ style "font-size" "48px"
+                            , style "margin-bottom" "10px"
+                            ]
+                            [ text "🏆" ]
+                        , Html.h3
+                            [ style "font-size" "28px"
+                            , style "color" "#4CAF50"
+                            , style "margin-bottom" "10px"
+                            , id "game-winner"
+                            ]
+                            [ text (w.name ++ " wins!") ]
+                        , Html.p
+                            [ style "font-size" "20px"
+                            , style "color" "#666"
+                            ]
+                            [ text (String.fromInt w.score ++ " points") ]
+                        ]
+
+                else
+                    Html.div
+                        [ style "margin-bottom" "40px" ]
+                        [ Html.p
+                            [ style "font-size" "20px"
+                            , style "color" "#666"
+                            ]
+                            [ text "No rounds were completed" ]
+                        ]
+
+            Nothing ->
+                Html.text ""
+        , Html.div
+            [ style "max-width" "600px"
+            , style "margin" "0 auto"
+            ]
+            [ Html.h3
+                [ style "margin-bottom" "20px" ]
+                [ text "Final Standings" ]
+            , Html.div
+                [ id "final-standings"
+                , style "display" "flex"
+                , style "flex-direction" "column"
+                , style "gap" "10px"
+                ]
+                (List.indexedMap viewFinalStanding sortedPlayers)
+            ]
+        ]
+
+
+viewFinalStanding : Int -> Player -> Html FrontendMsg
+viewFinalStanding index player =
+    let
+        isWinner =
+            index == 0 && player.score > 0
+
+        medal =
+            case index of
+                0 ->
+                    "🥇"
+
+                1 ->
+                    "🥈"
+
+                2 ->
+                    "🥉"
+
+                _ ->
+                    ""
+    in
+    Html.div
+        [ style "display" "flex"
+        , style "align-items" "center"
+        , style "justify-content" "space-between"
+        , style "padding" "15px 20px"
+        , style "background-color" (if isWinner then "#e8f5e9" else "#f9f9f9")
+        , style "border-radius" "8px"
+        , style "border" (if isWinner then "2px solid #4CAF50" else "1px solid #ddd")
+        ]
+        [ Html.div
+            [ style "display" "flex"
+            , style "align-items" "center"
+            , style "gap" "10px"
+            ]
+            [ if not (String.isEmpty medal) then
+                Html.span
+                    [ style "font-size" "24px" ]
+                    [ text medal ]
+
+              else
+                Html.span
+                    [ style "font-size" "20px"
+                    , style "color" "#999"
+                    , style "width" "24px"
+                    ]
+                    [ text (String.fromInt (index + 1) ++ ".") ]
+            , Html.span
+                [ style "font-size" "18px"
+                , style "font-weight" (if isWinner then "bold" else "normal")
+                ]
+                [ text player.name ]
+            ]
+        , Html.div
+            [ style "font-size" "20px"
+            , style "font-weight" "bold"
+            , style "color" (if isWinner then "#4CAF50" else "#666")
+            ]
+            [ text (String.fromInt player.score ++ " pts") ]
         ]
 
 
@@ -846,7 +982,19 @@ viewGameControls model =
         Playing _ ->
             Html.div [ style "margin-bottom" "30px" ]
                 [ Html.h2 [] [ text "Game Controls" ]
-                , Html.p [] [ text "Game in progress..." ]
+                , Html.p [ style "margin-bottom" "10px" ] [ text "Game in progress..." ]
+                , Html.button
+                    [ onClick EndGameClicked
+                    , id "end-game-button"
+                    , style "padding" "10px 20px"
+                    , style "font-size" "16px"
+                    , style "background-color" "#f44336"
+                    , style "color" "white"
+                    , style "border" "none"
+                    , style "border-radius" "4px"
+                    , style "cursor" "pointer"
+                    ]
+                    [ text "End Game" ]
                 ]
 
         Ended ->

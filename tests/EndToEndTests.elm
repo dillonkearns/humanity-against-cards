@@ -155,6 +155,25 @@ tests =
                                             (Test.Html.Query.find [ Test.Html.Selector.id "scoreboard" ]
                                                 >> Test.Html.Query.has [ Test.Html.Selector.text "pts" ]
                                             )
+
+                                        -- Admin ends the game to show final results
+                                        , admin.click 100 (Dom.id "end-game-button")
+
+                                        -- Verify game over screen with winner
+                                        , player1.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "🎉 Game Over! 🎉" ])
+
+                                        -- Verify winner is shown (Bob or Charlie won the round)
+                                        , player1.checkView 100
+                                            (Test.Html.Query.find [ Test.Html.Selector.id "game-winner" ]
+                                                >> Test.Html.Query.has [ Test.Html.Selector.text "wins!" ]
+                                            )
+
+                                        -- Verify final standings are shown
+                                        , player2.checkView 100
+                                            (Test.Html.Query.find [ Test.Html.Selector.id "final-standings" ]
+                                                >> Test.Html.Query.has [ Test.Html.Selector.text "pts" ]
+                                            )
                                         ]
                                     )
                                 ]
@@ -373,6 +392,65 @@ tests =
                                         >> Test.Html.Query.children []
                                         >> Test.Html.Query.count (Expect.equal 1)
                                     )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        ]
+    , Effect.Test.start
+        "Admin can end a game in progress"
+        (Effect.Time.millisToPosix 0)
+        config
+        [ Effect.Test.connectFrontend
+            100
+            (Effect.Lamdera.sessionIdFromString "adminSession")
+            "/admin"
+            { width = 800, height = 600 }
+            (\admin ->
+                [ admin.input 100 (Dom.id "deck-json-input") sampleDeckJson
+                , admin.click 100 (Dom.id "load-deck-button")
+                , Effect.Test.connectFrontend
+                    100
+                    (Effect.Lamdera.sessionIdFromString "player1Session")
+                    "/"
+                    { width = 800, height = 600 }
+                    (\player1 ->
+                        [ player1.input 100 (Dom.id "player-name-input") "Alice"
+                        , player1.click 100 (Dom.id "join-game-button")
+                        , Effect.Test.connectFrontend
+                            100
+                            (Effect.Lamdera.sessionIdFromString "player2Session")
+                            "/"
+                            { width = 800, height = 600 }
+                            (\player2 ->
+                                [ player2.input 100 (Dom.id "player-name-input") "Bob"
+                                , player2.click 100 (Dom.id "join-game-button")
+
+                                -- Start the game
+                                , admin.click 100 (Dom.id "start-game-button")
+
+                                -- Verify game has started for players
+                                , player1.checkView 100
+                                    (Test.Html.Query.has [ Test.Html.Selector.text "You are the judge this round!" ])
+
+                                -- Admin ends the game
+                                , admin.click 100 (Dom.id "end-game-button")
+
+                                -- Verify game has ended with final standings shown
+                                , player1.checkView 100
+                                    (Test.Html.Query.has [ Test.Html.Selector.text "🎉 Game Over! 🎉" ])
+                                , player1.checkView 100
+                                    (Test.Html.Query.has [ Test.Html.Selector.text "Final Standings" ])
+
+                                -- Players should see no winner since no rounds were completed
+                                , player2.checkView 100
+                                    (Test.Html.Query.has [ Test.Html.Selector.text "No rounds were completed" ])
+
+                                -- Admin should see game ended state
+                                , admin.checkView 100
+                                    (Test.Html.Query.has [ Test.Html.Selector.text "Game ended" ])
                                 ]
                             )
                         ]

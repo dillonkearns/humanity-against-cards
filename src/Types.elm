@@ -123,6 +123,7 @@ type FrontendMsg
     | JoinGameClicked
     | RemovePlayerClicked PlayerToken
     | StartGameClicked
+    | EndGameClicked
     | CardSelected String
     | SubmitCardClicked
     | RevealNextCardClicked
@@ -136,6 +137,7 @@ type ToBackend
     | JoinGame PlayerToken String  -- token (ignored), name
     | RemovePlayer PlayerToken  -- Remove player (admin only, lobby only)
     | StartGame
+    | EndGame  -- End the current game (admin only)
     | SubmitCard PlayerToken String  -- player token, card
     | RevealNextCard
     | SelectWinner PlayerToken  -- winner's token
