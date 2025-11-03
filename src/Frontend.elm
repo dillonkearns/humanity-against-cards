@@ -12,6 +12,7 @@ import Html exposing (Html, text)
 import Html.Attributes exposing (id, style, value, placeholder, disabled)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode
 import Lamdera
 import Time
 import Types exposing (..)
@@ -44,7 +45,7 @@ app_ =
             { title = "Humanity Against Cards"
             , body = [ view model ]
             }
-    , subscriptions = \_ -> Subscription.none
+    , subscriptions = subscriptions
     , onUrlChange = UrlChanged
     , onUrlRequest = UrlRequested
     }
@@ -150,23 +151,14 @@ update msg model =
             let
                 trimmedName =
                     String.trim model.playerNameInput
-
-                -- Use clientId as basis for token - it's unique per connection
-                token =
-                    case model.clientId of
-                        Just clientId ->
-                            PlayerToken (Effect.Lamdera.clientIdToString clientId)
-
-                        Nothing ->
-                            -- Fallback - use timestamp-like approach
-                            PlayerToken (String.fromInt model.counter ++ "-" ++ trimmedName)
             in
             if String.isEmpty trimmedName then
                 ( model, Command.none )
 
             else
-                ( { model | playerToken = Just token }
-                , Effect.Lamdera.sendToBackend (JoinGame token trimmedName)
+                -- Backend will generate token from SessionId
+                ( model
+                , Effect.Lamdera.sendToBackend (JoinGame (PlayerToken "") trimmedName)
                 )
 
         StartGameClicked ->
@@ -205,7 +197,40 @@ updateFromBackend msg model =
             ( { model | loadedDeck = Just deck }, Command.none )
 
         PlayerJoined player ->
-            ( { model | joinedPlayer = Just player }, Command.none )
+            ( { model
+                | joinedPlayer = Just player
+                , playerToken = Just player.token
+              }
+            , Command.none
+            )
+
+        PlayerReconnected player hand ->
+            -- Restore player state after reconnection
+            let
+                updatedGameState =
+                    case model.gameState of
+                        Playing playingState ->
+                            -- Restore current judge info
+                            Playing { playingState | currentJudge = playingState.currentJudge }
+
+                        other ->
+                            other
+            in
+            ( { model
+                | joinedPlayer = Just player
+                , playerToken = Just player.token
+                , myHand = hand
+                , gameState = updatedGameState
+                , currentJudge =
+                    case model.gameState of
+                        Playing playingState ->
+                            Just playingState.currentJudge
+
+                        _ ->
+                            Nothing
+              }
+            , Command.none
+            )
 
         PlayersListUpdated players ->
             ( { model | playersList = players }, Command.none )
@@ -857,3 +882,19 @@ viewLoadedDeck deck =
         , Html.ul [ id "answers-list" ]
             (List.map (\answer -> Html.li [] [ text answer ]) deck.answers)
         ]
+
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Subscription.Subscription FrontendOnly FrontendMsg
+subscriptions model =
+    Subscription.none
+
+
+-- HELPER FUNCTIONS
+
+
+tokenToString : PlayerToken -> String
+tokenToString (PlayerToken str) =
+    str

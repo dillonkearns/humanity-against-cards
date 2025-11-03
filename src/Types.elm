@@ -79,7 +79,7 @@ type GameState
 type alias BackendModel =
     { counter : Int
     , deck : Maybe Deck
-    , players : Dict String Player  -- keyed by token string
+    , players : Dict String Player  -- keyed by SessionId string for persistence
     , gameState : GameState
     }
 
@@ -132,7 +132,7 @@ type ToBackend
     = CounterIncremented
     | CounterDecremented
     | LoadDeck Deck
-    | JoinGame PlayerToken String  -- token, name
+    | JoinGame PlayerToken String  -- token (ignored), name
     | StartGame
     | SubmitCard PlayerToken String  -- player token, card
     | RevealNextCard
@@ -148,6 +148,7 @@ type ToFrontend
     = CounterNewValue Int ClientId
     | DeckLoaded Deck
     | PlayerJoined Player
+    | PlayerReconnected Player (List String)  -- player, hand
     | PlayersListUpdated (List Player)
     | GameStarted
         { yourHand : List String

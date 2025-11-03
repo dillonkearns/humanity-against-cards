@@ -44,10 +44,36 @@ update msg model =
     case msg of
         ClientConnected sessionId clientId ->
             let
+                sessionIdStr =
+                    sessionIdToString sessionId
+
                 playersList =
                     Dict.values model.players
+
+                -- Check if this SessionId has an existing player
+                maybeExistingPlayer =
+                    Dict.get sessionIdStr model.players
+
+                ( updatedModel, reconnectCmd ) =
+                    case maybeExistingPlayer of
+                        Just player ->
+                            -- Player exists! Update their clientId and reconnect
+                            let
+                                updatedPlayer =
+                                    { player | clientId = Just clientId }
+
+                                newPlayers =
+                                    Dict.insert sessionIdStr updatedPlayer model.players
+                            in
+                            ( { model | players = newPlayers }
+                            , Effect.Lamdera.sendToFrontend clientId (PlayerReconnected updatedPlayer updatedPlayer.hand)
+                            )
+
+                        Nothing ->
+                            -- New session, no existing player
+                            ( model, Command.none )
             in
-            ( model
+            ( updatedModel
             , Command.batch
                 [ Effect.Lamdera.sendToFrontend clientId <| CounterNewValue model.counter clientId
                 , Effect.Lamdera.sendToFrontend clientId <| PlayersListUpdated playersList
@@ -58,6 +84,7 @@ update msg model =
 
                     Nothing ->
                         Command.none
+                , reconnectCmd
                 ]
             )
 
@@ -91,10 +118,17 @@ updateFromFrontend sessionId clientId msg model =
             , Effect.Lamdera.broadcast (DeckLoaded deck)
             )
 
-        JoinGame (PlayerToken tokenStr) name ->
+        JoinGame _ name ->
+            -- Generate PlayerToken from SessionId for stability across reconnects
             let
+                sessionIdStr =
+                    sessionIdToString sessionId
+
+                token =
+                    PlayerToken sessionIdStr
+
                 player =
-                    { token = PlayerToken tokenStr
+                    { token = token
                     , name = name
                     , hand = []
                     , score = 0
@@ -102,7 +136,7 @@ updateFromFrontend sessionId clientId msg model =
                     }
 
                 newPlayers =
-                    Dict.insert tokenStr player model.players
+                    Dict.insert sessionIdStr player model.players
 
                 playersList =
                     Dict.values newPlayers
@@ -356,6 +390,12 @@ updateFromFrontend sessionId clientId msg model =
 
 
 -- HELPER FUNCTIONS
+
+
+sessionIdToString : SessionId -> String
+sessionIdToString sessionId =
+    -- Use the Effect.Lamdera function to convert SessionId to String
+    Effect.Lamdera.sessionIdToString sessionId
 
 
 tokenToString : PlayerToken -> String
