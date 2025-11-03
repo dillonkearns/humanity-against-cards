@@ -297,15 +297,45 @@ updateFromFrontend sessionId clientId msg model =
                                         (Maybe.map (\player -> { player | score = player.score + 1 }))
                                         model.players
 
-                                -- Update to RoundComplete phase
-                                roundCompletePhase =
-                                    RoundComplete
-                                        { winner = winnerToken
-                                        , winningCard = winningCard
-                                        }
+                                -- Calculate next judge (rotate round-robin)
+                                playersList =
+                                    Dict.values updatedPlayers
+
+                                nextJudge =
+                                    getNextJudge playingState.currentJudge playersList
+
+                                -- Get next prompt
+                                ( nextPrompt, remainingPromptsAfter ) =
+                                    case playingState.remainingPrompts of
+                                        prompt :: rest ->
+                                            ( prompt, rest )
+
+                                        [] ->
+                                            -- No more prompts, end game
+                                            ( "", [] )
+
+                                -- Transition to NextRound phase to show prompt preview
+                                nextRoundPhase =
+                                    if String.isEmpty nextPrompt then
+                                        -- No more prompts, stay in RoundComplete
+                                        RoundComplete
+                                            { winner = winnerToken
+                                            , winningCard = winningCard
+                                            }
+
+                                    else
+                                        NextRound
+                                            { nextPrompt = nextPrompt
+                                            , nextJudge = nextJudge
+                                            }
 
                                 updatedGameState =
-                                    Playing { playingState | roundPhase = Just roundCompletePhase }
+                                    Playing
+                                        { playingState
+                                            | roundPhase = Just nextRoundPhase
+                                            , currentJudge = nextJudge
+                                            , remainingPrompts = remainingPromptsAfter
+                                        }
                             in
                             ( { model
                                 | players = updatedPlayers
@@ -314,6 +344,7 @@ updateFromFrontend sessionId clientId msg model =
                             , Command.batch
                                 [ Effect.Lamdera.broadcast (WinnerSelected { winner = winnerToken, winningCard = winningCard })
                                 , Effect.Lamdera.broadcast (PlayersListUpdated (Dict.values updatedPlayers))
+                                , Effect.Lamdera.broadcast (RoundPhaseUpdated nextRoundPhase)
                                 ]
                             )
 
@@ -323,6 +354,97 @@ updateFromFrontend sessionId clientId msg model =
 
                 _ ->
                     -- Not playing, ignore
+                    ( model, Command.none )
+
+        AcceptPrompt ->
+            -- Judge accepts the prompt, start new round
+            case model.gameState of
+                Playing playingState ->
+                    case playingState.roundPhase of
+                        Just (NextRound { nextPrompt, nextJudge }) ->
+                            let
+                                -- Deal replacement cards to players (1 card each)
+                                ( playersWithNewCards, remainingAnswers ) =
+                                    dealReplacementCards (Dict.values model.players) playingState.remainingAnswers
+
+                                newPlayers =
+                                    playersWithNewCards
+                                        |> List.map (\p -> ( tokenToString p.token, p ))
+                                        |> Dict.fromList
+
+                                -- Start new submission phase
+                                newRoundPhase =
+                                    SubmissionPhase
+                                        { prompt = nextPrompt
+                                        , submissions = []
+                                        }
+
+                                updatedGameState =
+                                    Playing
+                                        { playingState
+                                            | roundPhase = Just newRoundPhase
+                                            , remainingAnswers = remainingAnswers
+                                        }
+                            in
+                            ( { model
+                                | players = newPlayers
+                                , gameState = updatedGameState
+                              }
+                            , Effect.Lamdera.broadcast (RoundPhaseUpdated newRoundPhase)
+                            )
+
+                        _ ->
+                            ( model, Command.none )
+
+                _ ->
+                    ( model, Command.none )
+
+        VetoPrompt ->
+            -- Judge vetoes the prompt, cycle to next one
+            case model.gameState of
+                Playing playingState ->
+                    case playingState.roundPhase of
+                        Just (NextRound { nextJudge }) ->
+                            let
+                                -- Get next prompt from remaining
+                                ( newNextPrompt, newRemainingPrompts ) =
+                                    case playingState.remainingPrompts of
+                                        prompt :: rest ->
+                                            ( prompt, rest )
+
+                                        [] ->
+                                            -- No more prompts, end game
+                                            ( "", [] )
+
+                                updatedPhase =
+                                    if String.isEmpty newNextPrompt then
+                                        -- No more prompts, game ends
+                                        RoundComplete
+                                            { winner = nextJudge
+                                            , winningCard = "No more prompts"
+                                            }
+
+                                    else
+                                        NextRound
+                                            { nextPrompt = newNextPrompt
+                                            , nextJudge = nextJudge
+                                            }
+
+                                updatedGameState =
+                                    Playing
+                                        { playingState
+                                            | roundPhase = Just updatedPhase
+                                            , remainingPrompts = newRemainingPrompts
+                                        }
+                            in
+                            ( { model | gameState = updatedGameState }
+                            , Effect.Lamdera.broadcast (RoundPhaseUpdated updatedPhase)
+                            )
+
+                        _ ->
+                            ( model, Command.none )
+
+                _ ->
                     ( model, Command.none )
 
         EndGame ->
@@ -430,6 +552,30 @@ tokenToString (PlayerToken str) =
     str
 
 
+getNextJudge : PlayerToken -> List Player -> PlayerToken
+getNextJudge currentJudge players =
+    -- Find current judge index and rotate to next player
+    let
+        indexed =
+            List.indexedMap Tuple.pair players
+
+        currentIndex =
+            indexed
+                |> List.filter (\( _, player ) -> player.token == currentJudge)
+                |> List.head
+                |> Maybe.map Tuple.first
+                |> Maybe.withDefault 0
+
+        nextIndex =
+            modBy (List.length players) (currentIndex + 1)
+    in
+    indexed
+        |> List.filter (\( idx, _ ) -> idx == nextIndex)
+        |> List.head
+        |> Maybe.map (Tuple.second >> .token)
+        |> Maybe.withDefault currentJudge
+
+
 shuffleSubmissions : List Submission -> List Submission
 shuffleSubmissions submissions =
     -- Simple deterministic shuffle based on card content
@@ -453,6 +599,38 @@ dealCardsToPlayers players availableCards accum =
                     { player | hand = hand }
             in
             dealCardsToPlayers rest remaining (updatedPlayer :: accum)
+
+
+dealReplacementCards : List Player -> List String -> ( List Player, List String )
+dealReplacementCards players availableCards =
+    -- Deal 1 replacement card to each player
+    dealReplacementCardsHelper players availableCards []
+
+
+dealReplacementCardsHelper : List Player -> List String -> List Player -> ( List Player, List String )
+dealReplacementCardsHelper players availableCards accum =
+    case players of
+        [] ->
+            ( List.reverse accum, availableCards )
+
+        player :: rest ->
+            let
+                -- Take 1 card for this player
+                newCard =
+                    List.head availableCards
+
+                remaining =
+                    List.drop 1 availableCards
+
+                updatedPlayer =
+                    case newCard of
+                        Just card ->
+                            { player | hand = player.hand ++ [ card ] }
+
+                        Nothing ->
+                            player
+            in
+            dealReplacementCardsHelper rest remaining (updatedPlayer :: accum)
 
 
 subscriptions model =

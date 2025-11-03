@@ -189,6 +189,12 @@ update msg model =
         SelectWinnerClicked winnerToken ->
             ( model, Effect.Lamdera.sendToBackend (SelectWinner winnerToken) )
 
+        AcceptPromptClicked ->
+            ( model, Effect.Lamdera.sendToBackend AcceptPrompt )
+
+        VetoPromptClicked ->
+            ( model, Effect.Lamdera.sendToBackend VetoPrompt )
+
 
 -- UPDATE FROM BACKEND
 
@@ -279,8 +285,33 @@ updateFromBackend msg model =
 
                         other ->
                             other
+
+                -- Reset submission status when new round starts
+                resetSubmission =
+                    case roundPhase of
+                        SubmissionPhase _ ->
+                            True
+
+                        _ ->
+                            False
+
+                -- Update currentJudge when entering NextRound phase
+                updatedCurrentJudge =
+                    case roundPhase of
+                        NextRound { nextJudge } ->
+                            Just nextJudge
+
+                        _ ->
+                            model.currentJudge
             in
-            ( { model | gameState = updatedGameState }, Command.none )
+            ( { model
+                | gameState = updatedGameState
+                , hasSubmitted = if resetSubmission then False else model.hasSubmitted
+                , selectedCard = if resetSubmission then Nothing else model.selectedCard
+                , currentJudge = updatedCurrentJudge
+              }
+            , Command.none
+            )
 
         CardSubmitted ->
             -- Confirmation message, already handled locally
@@ -349,8 +380,18 @@ viewGameEnded players =
         sortedPlayers =
             List.sortBy (\p -> -p.score) players
 
-        winner =
-            List.head sortedPlayers
+        topScore =
+            sortedPlayers
+                |> List.head
+                |> Maybe.map .score
+                |> Maybe.withDefault 0
+
+        winners =
+            sortedPlayers
+                |> List.filter (\p -> p.score == topScore && p.score > 0)
+
+        isTie =
+            List.length winners > 1
     in
     Html.div
         [ style "text-align" "center"
@@ -361,42 +402,47 @@ viewGameEnded players =
             , style "margin-bottom" "20px"
             ]
             [ text "🎉 Game Over! 🎉" ]
-        , case winner of
-            Just w ->
-                if w.score > 0 then
-                    Html.div
-                        [ style "margin-bottom" "40px" ]
-                        [ Html.div
-                            [ style "font-size" "48px"
-                            , style "margin-bottom" "10px"
-                            ]
-                            [ text "🏆" ]
-                        , Html.h3
-                            [ style "font-size" "28px"
-                            , style "color" "#4CAF50"
-                            , style "margin-bottom" "10px"
-                            , id "game-winner"
-                            ]
-                            [ text (w.name ++ " wins!") ]
-                        , Html.p
-                            [ style "font-size" "20px"
-                            , style "color" "#666"
-                            ]
-                            [ text (String.fromInt w.score ++ " points") ]
-                        ]
+        , if topScore > 0 then
+            Html.div
+                [ style "margin-bottom" "40px" ]
+                [ Html.div
+                    [ style "font-size" "48px"
+                    , style "margin-bottom" "10px"
+                    ]
+                    [ text "🏆" ]
+                , Html.h3
+                    [ style "font-size" "28px"
+                    , style "color" "#4CAF50"
+                    , style "margin-bottom" "10px"
+                    , id "game-winner"
+                    ]
+                    [ if isTie then
+                        text ("It's a tie! " ++ String.join ", " (List.map .name winners))
 
-                else
-                    Html.div
-                        [ style "margin-bottom" "40px" ]
-                        [ Html.p
-                            [ style "font-size" "20px"
-                            , style "color" "#666"
-                            ]
-                            [ text "No rounds were completed" ]
-                        ]
+                      else
+                        case List.head winners of
+                            Just w ->
+                                text (w.name ++ " wins!")
 
-            Nothing ->
-                Html.text ""
+                            Nothing ->
+                                text ""
+                    ]
+                , Html.p
+                    [ style "font-size" "20px"
+                    , style "color" "#666"
+                    ]
+                    [ text (String.fromInt topScore ++ " points") ]
+                ]
+
+          else
+            Html.div
+                [ style "margin-bottom" "40px" ]
+                [ Html.p
+                    [ style "font-size" "20px"
+                    , style "color" "#666"
+                    ]
+                    [ text "No rounds were completed" ]
+                ]
         , Html.div
             [ style "max-width" "600px"
             , style "margin" "0 auto"
@@ -417,60 +463,24 @@ viewGameEnded players =
 
 viewFinalStanding : Int -> Player -> Html FrontendMsg
 viewFinalStanding index player =
-    let
-        isWinner =
-            index == 0 && player.score > 0
-
-        medal =
-            case index of
-                0 ->
-                    "🥇"
-
-                1 ->
-                    "🥈"
-
-                2 ->
-                    "🥉"
-
-                _ ->
-                    ""
-    in
     Html.div
         [ style "display" "flex"
         , style "align-items" "center"
         , style "justify-content" "space-between"
         , style "padding" "15px 20px"
-        , style "background-color" (if isWinner then "#e8f5e9" else "#f9f9f9")
+        , style "background-color" (if index == 0 && player.score > 0 then "#e8f5e9" else "#f9f9f9")
         , style "border-radius" "8px"
-        , style "border" (if isWinner then "2px solid #4CAF50" else "1px solid #ddd")
+        , style "border" (if index == 0 && player.score > 0 then "2px solid #4CAF50" else "1px solid #ddd")
         ]
-        [ Html.div
-            [ style "display" "flex"
-            , style "align-items" "center"
-            , style "gap" "10px"
+        [ Html.span
+            [ style "font-size" "18px"
+            , style "font-weight" (if index == 0 && player.score > 0 then "bold" else "normal")
             ]
-            [ if not (String.isEmpty medal) then
-                Html.span
-                    [ style "font-size" "24px" ]
-                    [ text medal ]
-
-              else
-                Html.span
-                    [ style "font-size" "20px"
-                    , style "color" "#999"
-                    , style "width" "24px"
-                    ]
-                    [ text (String.fromInt (index + 1) ++ ".") ]
-            , Html.span
-                [ style "font-size" "18px"
-                , style "font-weight" (if isWinner then "bold" else "normal")
-                ]
-                [ text player.name ]
-            ]
+            [ text player.name ]
         , Html.div
             [ style "font-size" "20px"
             , style "font-weight" "bold"
-            , style "color" (if isWinner then "#4CAF50" else "#666")
+            , style "color" (if index == 0 && player.score > 0 then "#4CAF50" else "#666")
             ]
             [ text (String.fromInt player.score ++ " pts") ]
         ]
@@ -613,6 +623,12 @@ viewPlayerGame player model =
                 Just (RoundComplete _) ->
                     "Round Complete!"
 
+                Just (NextRound _) ->
+                    if isJudge then
+                        player.name ++ " - Ready for next round?"
+                    else
+                        "Round Complete!"
+
                 Nothing ->
                     "Welcome, " ++ player.name ++ "!"
     in
@@ -713,6 +729,85 @@ viewRoundPhase player model isJudge roundPhase =
 
         RoundComplete { winner, winningCard } ->
             viewWinnerAnnouncement winner winningCard model.playersList
+
+        NextRound { nextPrompt, nextJudge } ->
+            if isJudge then
+                viewJudgePromptPreview nextPrompt
+
+            else
+                Html.div
+                    [ style "text-align" "center"
+                    , style "padding" "40px"
+                    ]
+                    [ Html.h3 [] [ text "Round Complete!" ]
+                    , Html.p
+                        [ style "font-size" "18px"
+                        , style "color" "#666"
+                        , style "margin-top" "20px"
+                        ]
+                        [ text "Waiting for the next judge to start the next round..." ]
+                    ]
+
+
+viewJudgePromptPreview : String -> Html FrontendMsg
+viewJudgePromptPreview prompt =
+    Html.div
+        [ style "text-align" "center"
+        , style "padding" "40px"
+        ]
+        [ Html.h2
+            [ style "margin-bottom" "30px" ]
+            [ text "You're the judge for the next round!" ]
+        , Html.div
+            [ style "padding" "30px"
+            , style "background-color" "#f0f0f0"
+            , style "border-radius" "8px"
+            , style "margin-bottom" "30px"
+            , style "max-width" "600px"
+            , style "margin-left" "auto"
+            , style "margin-right" "auto"
+            ]
+            [ Html.h3
+                [ style "margin-top" "0" ]
+                [ text "Next Prompt:" ]
+            , Html.p
+                [ style "font-size" "20px"
+                , style "font-weight" "bold"
+                , id "next-prompt-preview"
+                ]
+                [ text prompt ]
+            ]
+        , Html.div
+            [ style "display" "flex"
+            , style "gap" "20px"
+            , style "justify-content" "center"
+            ]
+            [ Html.button
+                [ onClick AcceptPromptClicked
+                , id "accept-prompt-button"
+                , style "padding" "15px 40px"
+                , style "font-size" "18px"
+                , style "background-color" "#4CAF50"
+                , style "color" "white"
+                , style "border" "none"
+                , style "border-radius" "4px"
+                , style "cursor" "pointer"
+                ]
+                [ text "✓ Accept" ]
+            , Html.button
+                [ onClick VetoPromptClicked
+                , id "veto-prompt-button"
+                , style "padding" "15px 40px"
+                , style "font-size" "18px"
+                , style "background-color" "#f44336"
+                , style "color" "white"
+                , style "border" "none"
+                , style "border-radius" "4px"
+                , style "cursor" "pointer"
+                ]
+                [ text "✗ Veto" ]
+            ]
+        ]
 
 
 viewCardSelection : Model -> Html FrontendMsg

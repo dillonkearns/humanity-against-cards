@@ -60,6 +60,10 @@ type RoundPhase
         { winner : PlayerToken
         , winningCard : String
         }
+    | NextRound
+        { nextPrompt : String  -- Preview of next prompt for judge to approve/veto
+        , nextJudge : PlayerToken
+        }
 
 
 type GameState
@@ -128,6 +132,8 @@ type FrontendMsg
     | SubmitCardClicked
     | RevealNextCardClicked
     | SelectWinnerClicked PlayerToken
+    | AcceptPromptClicked
+    | VetoPromptClicked
 
 
 type ToBackend
@@ -141,6 +147,8 @@ type ToBackend
     | SubmitCard PlayerToken String  -- player token, card
     | RevealNextCard
     | SelectWinner PlayerToken  -- winner's token
+    | AcceptPrompt  -- Judge accepts next prompt, starts new round
+    | VetoPrompt  -- Judge vetoes prompt, cycle to next one
 
 
 type BackendMsg
