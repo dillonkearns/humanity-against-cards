@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/forms";
 
+/* Scan Elm source files for Tailwind classes */
+@source "../src/**/*.elm";
+
 /* Custom theme configuration for Tailwind v4 */
 @theme {
   /* Mobile-first color palette - fun and playful */

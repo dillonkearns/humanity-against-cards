@@ -1094,21 +1094,15 @@ viewWinnerAnnouncement winnerToken winningCard players =
         ]
 
 
--- View Helpers using Tailwind classes
+-- View Helpers using Tailwind utility classes
 
 viewAppHeader : String -> Html msg
 viewAppHeader title =
     Html.div
-        [ style "background-color" "#000000"
-        , style "color" "#ffffff"
-        , style "padding" "20px 30px"
-        , style "margin-bottom" "20px"
-        , style "box-shadow" "0 2px 8px rgba(0, 0, 0, 0.1)"
+        [ class "bg-black text-white px-8 py-5 mb-5 shadow-md"
         ]
         [ Html.h1
-            [ style "font-size" "32px"
-            , style "font-weight" "700"
-            , style "margin" "0"
+            [ class "text-3xl font-bold m-0"
             ]
             [ text title ]
         ]
@@ -1117,10 +1111,7 @@ viewAppHeader title =
 viewSubtitle : String -> Html msg
 viewSubtitle subtitle =
     Html.h2
-        [ style "font-size" "24px"
-        , style "font-weight" "600"
-        , style "margin" "10px 0"
-        , style "color" "#1f2937"
+        [ class "text-2xl font-semibold my-2.5 text-gray-800"
         ]
         [ text subtitle ]
 
@@ -1128,10 +1119,7 @@ viewSubtitle subtitle =
 viewLobbyContainer : List (Html msg) -> Html msg
 viewLobbyContainer content =
     Html.div
-        [ style "text-align" "center"
-        , style "padding" "60px 30px"
-        , style "max-width" "600px"
-        , style "margin" "0 auto"
+        [ class "text-center py-15 px-8 max-w-xl mx-auto"
         ]
         content
 
@@ -1139,10 +1127,7 @@ viewLobbyContainer content =
 viewLobbyTitle : String -> Html msg
 viewLobbyTitle title =
     Html.h3
-        [ style "font-size" "32px"
-        , style "font-weight" "700"
-        , style "margin-bottom" "20px"
-        , style "color" "#1f2937"
+        [ class "text-3xl font-bold mb-5 text-gray-800"
         ]
         [ text title ]
 
@@ -1150,26 +1135,17 @@ viewLobbyTitle title =
 viewLobbyMessage : String -> Html msg
 viewLobbyMessage message =
     Html.p
-        [ style "font-size" "20px"
-        , style "color" "#6b7280"
-        , style "margin-bottom" "30px"
+        [ class "text-xl text-gray-500 mb-8"
         ]
         [ text message
-        , Html.span [ class "animate-pulse-slow", style "display" "inline-block" ] [ text "..." ]
+        , Html.span [ class "animate-pulse-slow inline-block" ] [ text "..." ]
         ]
 
 
 viewCard : List (Html.Attribute msg) -> String -> Html msg
 viewCard attrs cardText =
     Html.div
-        ([ style "font-weight" "700"
-         , style "font-size" "21px"
-         , style "line-height" "29px"
-         , style "padding" "20px"
-         , style "border" "2px solid #1f2937"
-         , style "border-radius" "12px"
-         , style "background-color" "white"
-         , style "color" "#000000"
+        ([ class "font-bold text-[21px] leading-[29px] p-5 border-2 border-gray-800 rounded-xl bg-white text-black"
          ] ++ attrs)
         [ text cardText ]
 
@@ -1177,14 +1153,7 @@ viewCard attrs cardText =
 viewPromptCard : List (Html.Attribute msg) -> String -> Html msg
 viewPromptCard attrs promptText =
     Html.div
-        ([ style "font-weight" "700"
-         , style "font-size" "21px"
-         , style "line-height" "29px"
-         , style "padding" "20px"
-         , style "border" "2px solid #ffffff"
-         , style "border-radius" "12px"
-         , style "background-color" "#000000"
-         , style "color" "#ffffff"
+        ([ class "font-bold text-[21px] leading-[29px] p-5 border-2 border-white rounded-xl bg-black text-white"
          ] ++ attrs)
         [ text promptText ]
 
@@ -1194,23 +1163,28 @@ viewCardButton selectedCard index card =
     let
         isSelected =
             selectedCard == Just card
+
+        baseClasses =
+            "font-bold text-[21px] leading-[29px] p-5 rounded-xl w-full text-left cursor-pointer text-black"
+
+        borderClasses =
+            if isSelected then
+                "border-3 border-green-500"
+            else
+                "border-2 border-gray-800"
+
+        bgClasses =
+            if isSelected then
+                "bg-green-50"
+            else
+                "bg-white"
     in
     Html.li
-        [ style "margin-bottom" "10px" ]
+        [ class "mb-2.5" ]
         [ Html.button
             [ onClick (CardSelected card)
             , id ("card-" ++ String.fromInt index)
-            , style "font-weight" "700"
-            , style "font-size" "21px"
-            , style "line-height" "29px"
-            , style "padding" "20px"
-            , style "border-radius" "12px"
-            , style "width" "100%"
-            , style "text-align" "left"
-            , style "border" (if isSelected then "3px solid #4CAF50" else "2px solid #1f2937")
-            , style "background-color" (if isSelected then "#e8f5e9" else "white")
-            , style "cursor" "pointer"
-            , style "color" "#000000"
+            , class (baseClasses ++ " " ++ borderClasses ++ " " ++ bgClasses)
             ]
             [ text card ]
         ]
