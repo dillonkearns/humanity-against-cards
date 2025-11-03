@@ -161,6 +161,9 @@ update msg model =
                 , Effect.Lamdera.sendToBackend (JoinGame (PlayerToken "") trimmedName)
                 )
 
+        RemovePlayerClicked playerToken ->
+            ( model, Effect.Lamdera.sendToBackend (RemovePlayer playerToken) )
+
         StartGameClicked ->
             ( model, Effect.Lamdera.sendToBackend StartGame )
 
@@ -861,13 +864,32 @@ viewPlayersList players =
             Html.p [] [ text "No players yet" ]
 
           else
-            Html.ul [ id "players-list" ]
-                (List.map
-                    (\player ->
-                        Html.li [] [ text player.name ]
-                    )
-                    players
-                )
+            Html.ul [ id "players-list", style "list-style" "none", style "padding" "0" ]
+                (List.map viewPlayerListItem players)
+        ]
+
+
+viewPlayerListItem : Player -> Html FrontendMsg
+viewPlayerListItem player =
+    Html.li
+        [ style "display" "flex"
+        , style "align-items" "center"
+        , style "gap" "10px"
+        , style "margin-bottom" "8px"
+        ]
+        [ Html.span [ style "flex" "1" ] [ text player.name ]
+        , Html.button
+            [ onClick (RemovePlayerClicked player.token)
+            , id ("remove-player-" ++ tokenToString player.token)
+            , style "padding" "5px 10px"
+            , style "font-size" "12px"
+            , style "background-color" "#f44336"
+            , style "color" "white"
+            , style "border" "none"
+            , style "border-radius" "4px"
+            , style "cursor" "pointer"
+            ]
+            [ text "Remove" ]
         ]
 
 

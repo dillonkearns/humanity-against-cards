@@ -121,6 +121,7 @@ type FrontendMsg
     | LoadDeckClicked
     | PlayerNameInputChanged String
     | JoinGameClicked
+    | RemovePlayerClicked PlayerToken
     | StartGameClicked
     | CardSelected String
     | SubmitCardClicked
@@ -133,6 +134,7 @@ type ToBackend
     | CounterDecremented
     | LoadDeck Deck
     | JoinGame PlayerToken String  -- token (ignored), name
+    | RemovePlayer PlayerToken  -- Remove player (admin only, lobby only)
     | StartGame
     | SubmitCard PlayerToken String  -- player token, card
     | RevealNextCard

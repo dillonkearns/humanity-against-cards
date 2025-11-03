@@ -148,6 +148,26 @@ updateFromFrontend sessionId clientId msg model =
                 ]
             )
 
+        RemovePlayer playerToken ->
+            -- Only allow removing players in Lobby state
+            case model.gameState of
+                Lobby ->
+                    let
+                        -- Find and remove the player with this token
+                        newPlayers =
+                            Dict.filter (\_ player -> player.token /= playerToken) model.players
+
+                        playersList =
+                            Dict.values newPlayers
+                    in
+                    ( { model | players = newPlayers }
+                    , Effect.Lamdera.broadcast (PlayersListUpdated playersList)
+                    )
+
+                _ ->
+                    -- Can't remove players once game has started
+                    ( model, Command.none )
+
         SubmitCard playerToken card ->
             case model.gameState of
                 Playing playingState ->

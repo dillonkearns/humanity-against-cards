@@ -321,6 +321,65 @@ tests =
                 ]
             )
         ]
+    , Effect.Test.start
+        "Admin can remove players before game starts"
+        (Effect.Time.millisToPosix 0)
+        config
+        [ Effect.Test.connectFrontend
+            100
+            (Effect.Lamdera.sessionIdFromString "adminSession")
+            "/admin"
+            { width = 800, height = 600 }
+            (\admin ->
+                [ Effect.Test.connectFrontend
+                    100
+                    (Effect.Lamdera.sessionIdFromString "player1Session")
+                    "/"
+                    { width = 800, height = 600 }
+                    (\player1 ->
+                        [ player1.input 100 (Dom.id "player-name-input") "Alice"
+                        , player1.click 100 (Dom.id "join-game-button")
+                        , Effect.Test.connectFrontend
+                            100
+                            (Effect.Lamdera.sessionIdFromString "player2Session")
+                            "/"
+                            { width = 800, height = 600 }
+                            (\player2 ->
+                                [ player2.input 100 (Dom.id "player-name-input") "Bob"
+                                , player2.click 100 (Dom.id "join-game-button")
+
+                                -- Admin should see both players
+                                , admin.checkView 100
+                                    (Test.Html.Query.find [ Test.Html.Selector.id "players-list" ]
+                                        >> Test.Html.Query.has [ Test.Html.Selector.text "Alice" ]
+                                    )
+                                , admin.checkView 100
+                                    (Test.Html.Query.find [ Test.Html.Selector.id "players-list" ]
+                                        >> Test.Html.Query.has [ Test.Html.Selector.text "Bob" ]
+                                    )
+
+                                -- Admin removes Alice
+                                , admin.click 100 (Dom.id "remove-player-player1Session")
+
+                                -- Admin should only see Bob now
+                                , admin.checkView 100
+                                    (Test.Html.Query.find [ Test.Html.Selector.id "players-list" ]
+                                        >> Test.Html.Query.has [ Test.Html.Selector.text "Bob" ]
+                                    )
+
+                                -- Alice should no longer be in the list (only 1 player visible)
+                                , admin.checkView 100
+                                    (Test.Html.Query.find [ Test.Html.Selector.id "players-list" ]
+                                        >> Test.Html.Query.children []
+                                        >> Test.Html.Query.count (Expect.equal 1)
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        ]
     ]
 
 
