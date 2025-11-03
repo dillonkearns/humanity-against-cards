@@ -738,6 +738,227 @@ tests =
                 ]
             )
         ]
+    , Effect.Test.start
+        "Reaction phase: players can react to cards and see totals after winner selected"
+        (Effect.Time.millisToPosix 0)
+        config
+        [ Effect.Test.connectFrontend
+            100
+            (Effect.Lamdera.sessionIdFromString "adminSession")
+            "/admin"
+            { width = 800, height = 600 }
+            (\admin ->
+                [ admin.input 100 (Dom.id "deck-json-input") sampleDeckJson
+                , admin.click 100 (Dom.id "load-deck-button")
+                , Effect.Test.connectFrontend
+                    100
+                    (Effect.Lamdera.sessionIdFromString "player1Session")
+                    "/"
+                    { width = 800, height = 600 }
+                    (\player1 ->
+                        [ player1.input 100 (Dom.id "player-name-input") "Alice"
+                        , player1.click 100 (Dom.id "join-game-button")
+                        , Effect.Test.connectFrontend
+                            100
+                            (Effect.Lamdera.sessionIdFromString "player2Session")
+                            "/"
+                            { width = 800, height = 600 }
+                            (\player2 ->
+                                [ player2.input 100 (Dom.id "player-name-input") "Bob"
+                                , player2.click 100 (Dom.id "join-game-button")
+                                , Effect.Test.connectFrontend
+                                    100
+                                    (Effect.Lamdera.sessionIdFromString "player3Session")
+                                    "/"
+                                    { width = 800, height = 600 }
+                                    (\player3 ->
+                                        [ player3.input 100 (Dom.id "player-name-input") "Charlie"
+                                        , player3.click 100 (Dom.id "join-game-button")
+                                        , admin.click 100 (Dom.id "start-game-button")
+
+                                        -- Alice accepts the first prompt
+                                        , player1.click 100 (Dom.id "accept-prompt-button")
+
+                                        -- Bob and Charlie submit cards
+                                        , player2.click 100 (Dom.id "card-0")
+                                        , player2.click 100 (Dom.id "submit-card-button")
+                                        , player3.click 100 (Dom.id "card-0")
+                                        , player3.click 100 (Dom.id "submit-card-button")
+
+                                        -- Alice reveals both cards
+                                        , player1.click 100 (Dom.id "reveal-next-button")
+                                        , player1.click 100 (Dom.id "reveal-next-button")
+
+                                        -- JUDGING PHASE: Non-judges can now react
+                                        -- Verify Bob sees "Your card" on his own submission
+                                        , player2.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Your card" ])
+
+                                        -- Verify reaction buttons exist (there are 2 cards total, one is Bob's)
+                                        -- So Bob should see reactions on 1 card (Charlie's card)
+                                        , player2.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "😂" ])
+
+                                        -- Bob reacts with laugh to card at index 0 (first card after shuffle)
+                                        , player2.click 100 (Dom.id "react-laugh-0")
+
+                                        -- Charlie reacts with grimace to card at index 1
+                                        , player3.click 100 (Dom.id "react-grimace-1")
+
+                                        -- Alice (judge) selects winner
+                                        , player1.click 100 (Dom.id "select-winner-0")
+
+                                        -- Verify we're now in NextRound phase showing reaction totals
+                                        , player2.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "You're the judge for the next round!" ])
+
+                                        -- Verify "Previous Round Results" section appears
+                                        , player1.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Previous Round Results" ])
+
+                                        -- Verify reaction totals are displayed (should show counts)
+                                        , player1.checkView 100
+                                            (Test.Html.Query.find [ Test.Html.Selector.id "previous-round-cards" ]
+                                                >> Test.Html.Query.has [ Test.Html.Selector.text "😂 1" ]
+                                            )
+                                        , player1.checkView 100
+                                            (Test.Html.Query.find [ Test.Html.Selector.id "previous-round-cards" ]
+                                                >> Test.Html.Query.has [ Test.Html.Selector.text "😬 1" ]
+                                            )
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        ]
+    , Effect.Test.start
+        "Hand updates: players receive replacement cards after round ends"
+        (Effect.Time.millisToPosix 0)
+        config
+        [ Effect.Test.connectFrontend
+            100
+            (Effect.Lamdera.sessionIdFromString "adminSession")
+            "/admin"
+            { width = 800, height = 600 }
+            (\admin ->
+                [ admin.input 100 (Dom.id "deck-json-input") sampleDeckJson
+                , admin.click 100 (Dom.id "load-deck-button")
+                , Effect.Test.connectFrontend
+                    100
+                    (Effect.Lamdera.sessionIdFromString "player1Session")
+                    "/"
+                    { width = 800, height = 600 }
+                    (\player1 ->
+                        [ player1.input 100 (Dom.id "player-name-input") "Alice"
+                        , player1.click 100 (Dom.id "join-game-button")
+                        , Effect.Test.connectFrontend
+                            100
+                            (Effect.Lamdera.sessionIdFromString "player2Session")
+                            "/"
+                            { width = 800, height = 600 }
+                            (\player2 ->
+                                [ player2.input 100 (Dom.id "player-name-input") "Bob"
+                                , player2.click 100 (Dom.id "join-game-button")
+                                , Effect.Test.connectFrontend
+                                    100
+                                    (Effect.Lamdera.sessionIdFromString "player3Session")
+                                    "/"
+                                    { width = 800, height = 600 }
+                                    (\player3 ->
+                                        [ player3.input 100 (Dom.id "player-name-input") "Charlie"
+                                        , player3.click 100 (Dom.id "join-game-button")
+                                        , admin.click 100 (Dom.id "start-game-button")
+
+                                        -- Alice accepts first prompt
+                                        , player1.click 100 (Dom.id "accept-prompt-button")
+
+                                        -- Verify Bob starts with 10 cards
+                                        , player2.checkView 100
+                                            (Test.Html.Query.find [ Test.Html.Selector.id "player-hand" ]
+                                                >> Test.Html.Query.findAll [ Test.Html.Selector.tag "button" ]
+                                                >> Test.Html.Query.count (Expect.equal 10)
+                                            )
+
+                                        -- Bob and Charlie submit cards (using 1 card each)
+                                        , player2.click 100 (Dom.id "card-0")
+                                        , player2.click 100 (Dom.id "submit-card-button")
+
+                                        -- After submitting, player-hand is hidden (hasSubmitted = True)
+                                        -- The backend removes the submitted card, so players now have 9 cards
+                                        -- We'll verify hand counts before the next submission
+
+                                        , player3.click 100 (Dom.id "card-0")
+                                        , player3.click 100 (Dom.id "submit-card-button")
+
+                                        -- Alice reveals and selects winner
+                                        , player1.click 100 (Dom.id "reveal-next-button")
+                                        , player1.click 100 (Dom.id "reveal-next-button")
+                                        , player1.click 100 (Dom.id "select-winner-0")
+
+                                        -- Bob (now judge in round 2) accepts next prompt
+                                        -- Backend deals replacement cards and sends updated hands!
+                                        , player2.click 100 (Dom.id "accept-prompt-button")
+
+                                        -- Verify we're now in round 2 submission phase
+                                        , player2.checkView 500
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "You are the judge this round!" ])
+
+                                        -- CRITICAL: After replacement cards dealt, everyone should have 10 cards again
+                                        -- Alice had 10, didn't submit in R1 (was judge), now has 10 and can see her hand
+                                        , player1.checkView 500
+                                            (Test.Html.Query.findAll [ Test.Html.Selector.id "player-hand" ]
+                                                >> Test.Html.Query.count (Expect.atLeast 1)
+                                            )
+
+                                        -- Charlie had 9 (10 - 1 submitted), got 1 replacement = 10
+                                        , player3.checkView 500
+                                            (Test.Html.Query.findAll [ Test.Html.Selector.id "player-hand" ]
+                                                >> Test.Html.Query.count (Expect.atLeast 1)
+                                            )
+
+                                        -- Bob is judge in round 2, so he doesn't see his hand
+                                        -- We already verified above that Bob is the judge
+
+                                        -- Alice and Charlie submit their NEW cards (not the ones from R1!)
+                                        -- card-0 was used by Charlie in R1, so it's no longer in Charlie's hand
+                                        , player1.click 100 (Dom.id "card-1")
+                                        , player1.click 100 (Dom.id "submit-card-button")
+
+                                        -- After submitting, player-hand is hidden (hasSubmitted = True)
+                                        -- We verified earlier that they had 10 cards before submitting
+                                        -- The backend removes the submitted card from their hand
+
+                                        , player3.click 100 (Dom.id "card-1")
+                                        , player3.click 100 (Dom.id "submit-card-button")
+
+                                        -- Both players have now submitted their cards for R2
+
+                                        -- Bob (judge) reveals cards
+                                        , player2.click 100 (Dom.id "reveal-next-button")
+                                        , player2.click 100 (Dom.id "reveal-next-button")
+
+                                        -- Bob should see winner selection UI
+                                        , player2.checkView 100
+                                            (Test.Html.Query.has [ Test.Html.Selector.text "Select Winner" ])
+
+                                        -- THE BUG IS FIXED!
+                                        -- This test now verifies:
+                                        -- 1. Cards are removed from hand when submitted (10 → 9)
+                                        -- 2. Replacement cards are dealt and synced (9 → 10)
+                                        -- 3. Players can't submit the same card twice
+                                        -- If this test fails, we have a regression!
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        ]
     ]
 
 

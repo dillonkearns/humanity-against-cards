@@ -36,6 +36,19 @@ type alias Player =
 -- GAME STATE
 
 
+type Reaction
+    = Laugh
+    | Grimace
+    | MindBlown
+
+
+type alias PlayerReaction =
+    { playerToken : PlayerToken
+    , submissionCard : String
+    , reaction : Reaction
+    }
+
+
 type alias Submission =
     { playerToken : PlayerToken
     , card : String
@@ -55,6 +68,7 @@ type RoundPhase
     | JudgingPhase
         { prompt : String
         , submissions : List Submission
+        , reactions : List PlayerReaction
         }
     | RoundComplete
         { winner : PlayerToken
@@ -63,6 +77,8 @@ type RoundPhase
     | NextRound
         { nextPrompt : String  -- Preview of next prompt for judge to approve/veto
         , nextJudge : PlayerToken
+        , previousSubmissions : List Submission  -- Show previous round's cards with reactions
+        , previousReactions : List PlayerReaction
         }
 
 
@@ -134,6 +150,7 @@ type FrontendMsg
     | SelectWinnerClicked PlayerToken
     | AcceptPromptClicked
     | VetoPromptClicked
+    | ReactToCardClicked String Reaction  -- card, reaction emoji
 
 
 type ToBackend
@@ -149,6 +166,7 @@ type ToBackend
     | SelectWinner PlayerToken  -- winner's token
     | AcceptPrompt  -- Judge accepts next prompt, starts new round
     | VetoPrompt  -- Judge vetoes prompt, cycle to next one
+    | AddReaction PlayerToken String Reaction  -- player token, card, reaction
 
 
 type BackendMsg
@@ -173,3 +191,4 @@ type ToFrontend
         { winner : PlayerToken
         , winningCard : String
         }
+    | HandUpdated (List String)  -- Send updated hand to player

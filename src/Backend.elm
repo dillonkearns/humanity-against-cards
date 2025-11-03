@@ -174,6 +174,27 @@ updateFromFrontend sessionId clientId msg model =
                     case playingState.roundPhase of
                         Just (SubmissionPhase phaseData) ->
                             let
+                                -- Remove card from player's hand
+                                updatedPlayers =
+                                    Dict.update (tokenToString playerToken)
+                                        (Maybe.map (\player ->
+                                            { player | hand = List.filter (\c -> c /= card) player.hand }
+                                        ))
+                                        model.players
+
+                                -- Get updated hand to send back to player
+                                updatedHand =
+                                    updatedPlayers
+                                        |> Dict.get (tokenToString playerToken)
+                                        |> Maybe.map .hand
+                                        |> Maybe.withDefault []
+
+                                -- Get player's clientId to send hand update
+                                playerClientId =
+                                    updatedPlayers
+                                        |> Dict.get (tokenToString playerToken)
+                                        |> Maybe.andThen .clientId
+
                                 -- Add the submission
                                 newSubmission =
                                     { playerToken = playerToken, card = card }
@@ -183,7 +204,7 @@ updateFromFrontend sessionId clientId msg model =
 
                                 -- Count non-judge players
                                 nonJudgeCount =
-                                    Dict.size model.players - 1
+                                    Dict.size updatedPlayers - 1
 
                                 -- Check if all players have submitted
                                 allSubmitted =
@@ -216,9 +237,20 @@ updateFromFrontend sessionId clientId msg model =
                                         ( updatedPhase
                                         , Playing { playingState | roundPhase = Just updatedPhase }
                                         )
+
+                                commands =
+                                    case playerClientId of
+                                        Just cid ->
+                                            Command.batch
+                                                [ Effect.Lamdera.broadcast (RoundPhaseUpdated nextPhase)
+                                                , Effect.Lamdera.sendToFrontend cid (HandUpdated updatedHand)
+                                                ]
+
+                                        Nothing ->
+                                            Effect.Lamdera.broadcast (RoundPhaseUpdated nextPhase)
                             in
-                            ( { model | gameState = newGameState }
-                            , Effect.Lamdera.broadcast (RoundPhaseUpdated nextPhase)
+                            ( { model | gameState = newGameState, players = updatedPlayers }
+                            , commands
                             )
 
                         _ ->
@@ -249,6 +281,7 @@ updateFromFrontend sessionId clientId msg model =
                                                 JudgingPhase
                                                     { prompt = phaseData.prompt
                                                     , submissions = phaseData.submissions
+                                                    , reactions = []
                                                     }
                                         in
                                         ( judgingPhase
@@ -327,6 +360,8 @@ updateFromFrontend sessionId clientId msg model =
                                         NextRound
                                             { nextPrompt = nextPrompt
                                             , nextJudge = nextJudge
+                                            , previousSubmissions = phaseData.submissions
+                                            , previousReactions = phaseData.reactions
                                             }
 
                                 updatedGameState =
@@ -384,13 +419,27 @@ updateFromFrontend sessionId clientId msg model =
                                         { playingState
                                             | roundPhase = Just newRoundPhase
                                             , remainingAnswers = remainingAnswers
+                                            , currentJudge = nextJudge
                                         }
+
+                                -- Send updated hands to all players
+                                handUpdateCommands =
+                                    playersWithNewCards
+                                        |> List.filterMap (\player ->
+                                            case player.clientId of
+                                                Just cid ->
+                                                    Just (Effect.Lamdera.sendToFrontend cid (HandUpdated player.hand))
+
+                                                Nothing ->
+                                                    Nothing
+                                        )
                             in
                             ( { model
                                 | players = newPlayers
                                 , gameState = updatedGameState
                               }
-                            , Effect.Lamdera.broadcast (RoundPhaseUpdated newRoundPhase)
+                            , Command.batch
+                                (Effect.Lamdera.broadcast (GameStateUpdated updatedGameState) :: handUpdateCommands)
                             )
 
                         _ ->
@@ -404,7 +453,7 @@ updateFromFrontend sessionId clientId msg model =
             case model.gameState of
                 Playing playingState ->
                     case playingState.roundPhase of
-                        Just (NextRound { nextJudge }) ->
+                        Just (NextRound roundData) ->
                             let
                                 -- Get next prompt from remaining
                                 ( newNextPrompt, newRemainingPrompts ) =
@@ -420,14 +469,16 @@ updateFromFrontend sessionId clientId msg model =
                                     if String.isEmpty newNextPrompt then
                                         -- No more prompts, game ends
                                         RoundComplete
-                                            { winner = nextJudge
+                                            { winner = roundData.nextJudge
                                             , winningCard = "No more prompts"
                                             }
 
                                     else
                                         NextRound
                                             { nextPrompt = newNextPrompt
-                                            , nextJudge = nextJudge
+                                            , nextJudge = roundData.nextJudge
+                                            , previousSubmissions = roundData.previousSubmissions
+                                            , previousReactions = roundData.previousReactions
                                             }
 
                                 updatedGameState =
@@ -445,6 +496,54 @@ updateFromFrontend sessionId clientId msg model =
                             ( model, Command.none )
 
                 _ ->
+                    ( model, Command.none )
+
+        AddReaction playerToken card reaction ->
+            case model.gameState of
+                Playing playingState ->
+                    case playingState.roundPhase of
+                        Just (JudgingPhase phaseData) ->
+                            let
+                                -- Check if player has already reacted to this card
+                                existingReaction =
+                                    phaseData.reactions
+                                        |> List.filter (\r -> r.playerToken == playerToken && r.submissionCard == card)
+                                        |> List.head
+
+                                newReaction =
+                                    { playerToken = playerToken
+                                    , submissionCard = card
+                                    , reaction = reaction
+                                    }
+
+                                updatedReactions =
+                                    case existingReaction of
+                                        Just _ ->
+                                            -- Replace existing reaction
+                                            phaseData.reactions
+                                                |> List.filter (\r -> not (r.playerToken == playerToken && r.submissionCard == card))
+                                                |> (::) newReaction
+
+                                        Nothing ->
+                                            -- Add new reaction
+                                            newReaction :: phaseData.reactions
+
+                                updatedPhase =
+                                    JudgingPhase { phaseData | reactions = updatedReactions }
+
+                                updatedGameState =
+                                    Playing { playingState | roundPhase = Just updatedPhase }
+                            in
+                            ( { model | gameState = updatedGameState }
+                            , Effect.Lamdera.broadcast (RoundPhaseUpdated updatedPhase)
+                            )
+
+                        _ ->
+                            -- Not in judging phase, ignore
+                            ( model, Command.none )
+
+                _ ->
+                    -- Not playing, ignore
                     ( model, Command.none )
 
         EndGame ->
@@ -495,6 +594,8 @@ updateFromFrontend sessionId clientId msg model =
                                 NextRound
                                     { nextPrompt = firstPrompt
                                     , nextJudge = firstJudge
+                                    , previousSubmissions = []
+                                    , previousReactions = []
                                     }
 
                             newGameState =
@@ -616,20 +717,24 @@ dealReplacementCardsHelper players availableCards accum =
 
         player :: rest ->
             let
-                -- Take 1 card for this player
-                newCard =
-                    List.head availableCards
+                -- Only give a card if player has less than 10 cards
+                -- (Judge doesn't submit, so they keep their 10 cards)
+                needsCard =
+                    List.length player.hand < 10
 
-                remaining =
-                    List.drop 1 availableCards
+                ( updatedPlayer, remaining ) =
+                    if needsCard then
+                        case List.head availableCards of
+                            Just card ->
+                                ( { player | hand = player.hand ++ [ card ] }
+                                , List.drop 1 availableCards
+                                )
 
-                updatedPlayer =
-                    case newCard of
-                        Just card ->
-                            { player | hand = player.hand ++ [ card ] }
+                            Nothing ->
+                                ( player, availableCards )
 
-                        Nothing ->
-                            player
+                    else
+                        ( player, availableCards )
             in
             dealReplacementCardsHelper rest remaining (updatedPlayer :: accum)
 

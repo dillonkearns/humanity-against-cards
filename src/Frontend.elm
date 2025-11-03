@@ -195,6 +195,14 @@ update msg model =
         VetoPromptClicked ->
             ( model, Effect.Lamdera.sendToBackend VetoPrompt )
 
+        ReactToCardClicked card reaction ->
+            case model.playerToken of
+                Just token ->
+                    ( model, Effect.Lamdera.sendToBackend (AddReaction token card reaction) )
+
+                Nothing ->
+                    ( model, Command.none )
+
 
 -- UPDATE FROM BACKEND
 
@@ -258,7 +266,35 @@ updateFromBackend msg model =
             )
 
         GameStateUpdated gameState ->
-            ( { model | gameState = gameState }, Command.none )
+            let
+                -- Reset submission status when new round starts
+                resetSubmission =
+                    case gameState of
+                        Playing playingState ->
+                            case playingState.roundPhase of
+                                Just (SubmissionPhase _) ->
+                                    True
+
+                                _ ->
+                                    False
+
+                        _ ->
+                            False
+            in
+            ( { model
+                | gameState = gameState
+                , currentJudge =
+                    case gameState of
+                        Playing playingState ->
+                            Just playingState.currentJudge
+
+                        _ ->
+                            model.currentJudge
+                , hasSubmitted = if resetSubmission then False else model.hasSubmitted
+                , selectedCard = if resetSubmission then Nothing else model.selectedCard
+              }
+            , Command.none
+            )
 
         RoundPhaseUpdated roundPhase ->
             let
@@ -322,6 +358,9 @@ updateFromBackend msg model =
                             other
             in
             ( { model | gameState = updatedGameState }, Command.none )
+
+        HandUpdated newHand ->
+            ( { model | myHand = newHand }, Command.none )
 
 
 -- VIEW
@@ -684,7 +723,7 @@ viewRoundPhase player model isJudge roundPhase =
                         ]
                 ]
 
-        JudgingPhase { prompt, submissions } ->
+        JudgingPhase { prompt, submissions, reactions } ->
             Html.div []
                 [ Html.div
                     [ style "margin-bottom" "20px"
@@ -707,30 +746,40 @@ viewRoundPhase player model isJudge roundPhase =
                     Html.div []
                         [ Html.h3 [] [ text "All cards revealed!" ]
                         , Html.p [] [ text "Waiting for judge to select winner..." ]
-                        , viewSubmittedCards submissions
+                        , viewSubmittedCardsWithReactions submissions reactions model.playerToken
                         ]
                 ]
 
         RoundComplete { winner, winningCard } ->
             viewWinnerAnnouncement winner winningCard model.playersList
 
-        NextRound { nextPrompt, nextJudge } ->
-            if isJudge then
-                viewJudgePromptPreview nextPrompt
-
-            else
-                Html.div
-                    [ style "text-align" "center"
-                    , style "padding" "40px"
-                    ]
-                    [ Html.h3 [] [ text "Round Complete!" ]
-                    , Html.p
-                        [ style "font-size" "18px"
-                        , style "color" "#666"
-                        , style "margin-top" "20px"
+        NextRound { nextPrompt, nextJudge, previousSubmissions, previousReactions } ->
+            Html.div []
+                [ if not (List.isEmpty previousSubmissions) then
+                    Html.div [ style "margin-bottom" "30px" ]
+                        [ Html.h3 [ style "text-align" "center" ] [ text "Previous Round Results" ]
+                        , viewSubmittedCardsWithReactionTotals previousSubmissions previousReactions
                         ]
-                        [ text "Waiting for the next judge to start the next round..." ]
-                    ]
+
+                  else
+                    Html.text ""
+                , if isJudge then
+                    viewJudgePromptPreview nextPrompt
+
+                  else
+                    Html.div
+                        [ style "text-align" "center"
+                        , style "padding" "40px"
+                        ]
+                        [ Html.h3 [] [ text "Round Complete!" ]
+                        , Html.p
+                            [ style "font-size" "18px"
+                            , style "color" "#666"
+                            , style "margin-top" "20px"
+                            ]
+                            [ text "Waiting for the next judge to start the next round..." ]
+                        ]
+                ]
 
 
 viewJudgePromptPreview : String -> Html FrontendMsg
@@ -919,6 +968,136 @@ viewSubmittedCards submissions =
                     , style "border-radius" "8px"
                     ]
                     [ Html.p [ style "font-size" "16px", style "margin" "0" ] [ text submission.card ] ]
+            )
+            submissions
+        )
+
+
+viewSubmittedCardsWithReactions : List Submission -> List PlayerReaction -> Maybe PlayerToken -> Html FrontendMsg
+viewSubmittedCardsWithReactions submissions reactions maybePlayerToken =
+    Html.div [ id "submitted-cards" ]
+        (List.indexedMap
+            (\index submission ->
+                let
+                    isOwnSubmission =
+                        case maybePlayerToken of
+                            Just token ->
+                                submission.playerToken == token
+
+                            Nothing ->
+                                False
+
+                    playerReaction =
+                        case maybePlayerToken of
+                            Just token ->
+                                reactions
+                                    |> List.filter (\r -> r.playerToken == token && r.submissionCard == submission.card)
+                                    |> List.head
+                                    |> Maybe.map .reaction
+
+                            Nothing ->
+                                Nothing
+                in
+                Html.div
+                    [ style "padding" "15px"
+                    , style "margin-bottom" "10px"
+                    , style "background-color" "white"
+                    , style "border" "1px solid #ddd"
+                    , style "border-radius" "8px"
+                    ]
+                    [ Html.p [ style "font-size" "16px", style "margin-bottom" "10px" ] [ text submission.card ]
+                    , if isOwnSubmission then
+                        Html.p
+                            [ style "text-align" "center"
+                            , style "color" "#999"
+                            , style "font-style" "italic"
+                            , id ("your-card-" ++ String.fromInt index)
+                            ]
+                            [ text "Your card" ]
+
+                      else
+                        Html.div
+                            [ style "display" "flex"
+                            , style "gap" "10px"
+                            , style "justify-content" "center"
+                            ]
+                            [ viewReactionButton index submission.card Laugh "😂" (playerReaction == Just Laugh)
+                            , viewReactionButton index submission.card Grimace "😬" (playerReaction == Just Grimace)
+                            , viewReactionButton index submission.card MindBlown "🤯" (playerReaction == Just MindBlown)
+                            ]
+                    ]
+            )
+            submissions
+        )
+
+
+viewReactionButton : Int -> String -> Reaction -> String -> Bool -> Html FrontendMsg
+viewReactionButton cardIndex card reaction emoji isSelected =
+    let
+        reactionName =
+            case reaction of
+                Laugh ->
+                    "laugh"
+
+                Grimace ->
+                    "grimace"
+
+                MindBlown ->
+                    "mindblown"
+    in
+    Html.button
+        [ onClick (ReactToCardClicked card reaction)
+        , id ("react-" ++ reactionName ++ "-" ++ String.fromInt cardIndex)
+        , style "padding" "8px 16px"
+        , style "font-size" "24px"
+        , style "background-color" (if isSelected then "#4CAF50" else "white")
+        , style "border" (if isSelected then "2px solid #4CAF50" else "2px solid #ddd")
+        , style "border-radius" "8px"
+        , style "cursor" "pointer"
+        ]
+        [ text emoji ]
+
+
+viewSubmittedCardsWithReactionTotals : List Submission -> List PlayerReaction -> Html FrontendMsg
+viewSubmittedCardsWithReactionTotals submissions reactions =
+    Html.div [ id "previous-round-cards" ]
+        (List.map
+            (\submission ->
+                let
+                    laughCount =
+                        reactions
+                            |> List.filter (\r -> r.submissionCard == submission.card && r.reaction == Laugh)
+                            |> List.length
+
+                    grimaceCount =
+                        reactions
+                            |> List.filter (\r -> r.submissionCard == submission.card && r.reaction == Grimace)
+                            |> List.length
+
+                    mindBlownCount =
+                        reactions
+                            |> List.filter (\r -> r.submissionCard == submission.card && r.reaction == MindBlown)
+                            |> List.length
+                in
+                Html.div
+                    [ style "padding" "15px"
+                    , style "margin-bottom" "10px"
+                    , style "background-color" "white"
+                    , style "border" "1px solid #ddd"
+                    , style "border-radius" "8px"
+                    ]
+                    [ Html.p [ style "font-size" "16px", style "margin-bottom" "10px" ] [ text submission.card ]
+                    , Html.div
+                        [ style "display" "flex"
+                        , style "gap" "15px"
+                        , style "justify-content" "center"
+                        , style "font-size" "18px"
+                        ]
+                        [ Html.span [] [ text ("😂 " ++ String.fromInt laughCount) ]
+                        , Html.span [] [ text ("😬 " ++ String.fromInt grimaceCount) ]
+                        , Html.span [] [ text ("🤯 " ++ String.fromInt mindBlownCount) ]
+                        ]
+                    ]
             )
             submissions
         )
