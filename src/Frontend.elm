@@ -883,19 +883,13 @@ viewJudgeSelection prompt submissions =
 viewJudgingCard : Int -> Submission -> Html FrontendMsg
 viewJudgingCard index submission =
     Html.div
-        [ style "margin-bottom" "15px" ]
-        [ viewCard [] submission.card
+        [ class "font-bold text-[21px] leading-[29px] p-5 border-2 border-gray-800 rounded-xl bg-white text-black mb-4"
+        ]
+        [ Html.div [ class "mb-4" ] [ text submission.card ]
         , Html.button
             [ onClick (SelectWinnerClicked submission.playerToken)
             , id ("select-winner-" ++ String.fromInt index)
-            , style "margin-top" "10px"
-            , style "padding" "10px 20px"
-            , style "font-size" "14px"
-            , style "background-color" "#4CAF50"
-            , style "color" "white"
-            , style "border" "none"
-            , style "border-radius" "4px"
-            , style "cursor" "pointer"
+            , class "w-full py-3 px-5 text-base font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-98 transition-all"
             ]
             [ text "Select Winner" ]
         ]
@@ -938,24 +932,19 @@ viewSubmittedCardsWithReactions submissions reactions maybePlayerToken =
                                 Nothing
                 in
                 Html.div
-                    [ style "margin-bottom" "15px" ]
-                    [ viewCard [] submission.card
+                    [ class "font-bold text-[21px] leading-[29px] p-5 border-2 border-gray-800 rounded-xl bg-white text-black mb-4"
+                    ]
+                    [ Html.div [ class "mb-4" ] [ text submission.card ]
                     , if isOwnSubmission then
                         Html.p
-                            [ style "text-align" "center"
-                            , style "color" "#999"
-                            , style "font-style" "italic"
-                            , style "margin-top" "10px"
+                            [ class "text-center text-gray-400 italic text-base"
                             , id ("your-card-" ++ String.fromInt index)
                             ]
                             [ text "Your card" ]
 
                       else
                         Html.div
-                            [ style "display" "flex"
-                            , style "gap" "10px"
-                            , style "justify-content" "center"
-                            , style "margin-top" "10px"
+                            [ class "flex gap-2 justify-center"
                             ]
                             [ viewReactionButton index submission.card Laugh "😂" (playerReaction == Just Laugh)
                             , viewReactionButton index submission.card Grimace "😬" (playerReaction == Just Grimace)
@@ -980,16 +969,17 @@ viewReactionButton cardIndex card reaction emoji isSelected =
 
                 MindBlown ->
                     "mindblown"
+
+        buttonClasses =
+            if isSelected then
+                "py-2 px-4 text-2xl bg-green-500 border-2 border-green-500 rounded-lg cursor-pointer hover:bg-green-600"
+            else
+                "py-2 px-4 text-2xl bg-white border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50"
     in
     Html.button
         [ onClick (ReactToCardClicked card reaction)
         , id ("react-" ++ reactionName ++ "-" ++ String.fromInt cardIndex)
-        , style "padding" "8px 16px"
-        , style "font-size" "24px"
-        , style "background-color" (if isSelected then "#4CAF50" else "white")
-        , style "border" (if isSelected then "2px solid #4CAF50" else "2px solid #ddd")
-        , style "border-radius" "8px"
-        , style "cursor" "pointer"
+        , class buttonClasses
         ]
         [ text emoji ]
 
