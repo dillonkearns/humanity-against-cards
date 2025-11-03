@@ -680,9 +680,9 @@ viewRoundPhase player model isJudge roundPhase =
                     , viewPromptCard [ id "current-prompt" ] prompt
                     ]
                 , if isJudge then
-                    Html.div []
-                        [ Html.p [] [ text "You are the judge this round!" ]
-                        , Html.p [] [ text ("Waiting for " ++ String.fromInt (List.length submissions) ++ " submissions...") ]
+                    viewLobbyContainer
+                        [ viewLobbyTitle "You are the judge this round!"
+                        , viewLobbyMessage ("Waiting for " ++ String.fromInt (List.length submissions) ++ " submissions")
                         ]
 
                   else
@@ -699,9 +699,9 @@ viewRoundPhase player model isJudge roundPhase =
                     viewJudgeReveal submissions revealedCount
 
                   else
-                    Html.div []
-                        [ Html.h3 [] [ text "Revealing cards..." ]
-                        , Html.p [ id "reveal-status" ]
+                    viewLobbyContainer
+                        [ viewLobbyTitle "Revealing cards..."
+                        , Html.p [ id "reveal-status", class "text-xl text-gray-500 mb-8" ]
                             [ text (String.fromInt revealedCount ++ " of " ++ String.fromInt (List.length submissions) ++ " cards revealed") ]
                         ]
                 ]
@@ -755,9 +755,7 @@ viewJudgePromptPreview prompt =
         [ style "text-align" "center"
         , style "padding" "40px"
         ]
-        [ Html.h2
-            [ style "margin-bottom" "30px" ]
-            [ text "You're the judge for the next round!" ]
+        [ viewLobbyTitle "You're the judge for the next round!"
         , Html.div
             [ style "margin-bottom" "30px"
             , style "max-width" "600px"
@@ -765,7 +763,7 @@ viewJudgePromptPreview prompt =
             , style "margin-right" "auto"
             ]
             [ Html.h3
-                [ style "margin-bottom" "10px" ]
+                [ class "text-2xl font-semibold mb-2.5 text-gray-800" ]
                 [ text "Next Prompt:" ]
             , viewPromptCard [ id "next-prompt-preview" ] prompt
             ]
@@ -870,14 +868,7 @@ viewJudgeReveal submissions revealedCount =
 
 viewRevealedCard : Int -> Submission -> Html FrontendMsg
 viewRevealedCard index submission =
-    Html.div
-        [ style "padding" "15px"
-        , style "margin-bottom" "10px"
-        , style "background-color" "white"
-        , style "border" "2px solid #ddd"
-        , style "border-radius" "8px"
-        ]
-        [ Html.p [ style "font-size" "16px", style "margin" "0" ] [ text submission.card ] ]
+    viewCard [ style "margin-bottom" "10px" ] submission.card
 
 
 viewJudgeSelection : String -> List Submission -> Html FrontendMsg
