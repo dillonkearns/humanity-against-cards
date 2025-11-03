@@ -543,9 +543,12 @@ viewJoinForm model =
 
 viewPlayerLobby : Player -> Html FrontendMsg
 viewPlayerLobby player =
-    Html.div []
-        [ Html.h2 [] [ text ("Welcome, " ++ player.name ++ "!") ]
-        , Html.p [ id "player-joined-message" ] [ text "Waiting for game to start..." ]
+    Html.div [ class "lobby-container" ]
+        [ Html.h2 [ class "lobby-title" ] [ text ("Welcome, " ++ player.name ++ "!") ]
+        , Html.p [ class "lobby-message", id "player-joined-message" ]
+            [ text "Waiting for game to start"
+            , Html.span [ class "waiting-indicator" ] [ text "..." ]
+            ]
         ]
 
 
@@ -664,7 +667,12 @@ viewPlayerGame player model =
         , viewScoreboard model.playersList model.currentJudge
         , case roundPhase of
             Nothing ->
-                Html.p [] [ text "Round starting..." ]
+                Html.div [ class "lobby-container" ]
+                    [ Html.p [ class "lobby-message" ]
+                        [ text "Round starting"
+                        , Html.span [ class "waiting-indicator" ] [ text "..." ]
+                        ]
+                    ]
 
             Just phase ->
                 viewRoundPhase player model isJudge phase
@@ -730,8 +738,13 @@ viewRoundPhase player model isJudge roundPhase =
 
                   else
                     Html.div []
-                        [ Html.h3 [] [ text "All cards revealed!" ]
-                        , Html.p [] [ text "Waiting for judge to select winner..." ]
+                        [ Html.div [ class "lobby-container" ]
+                            [ Html.h3 [ class "lobby-title" ] [ text "All cards revealed!" ]
+                            , Html.p [ class "lobby-message" ]
+                                [ text "Waiting for judge to select winner"
+                                , Html.span [ class "waiting-indicator" ] [ text "..." ]
+                                ]
+                            ]
                         , viewSubmittedCardsWithReactions submissions reactions model.playerToken
                         ]
                 ]
@@ -753,17 +766,12 @@ viewRoundPhase player model isJudge roundPhase =
                     viewJudgePromptPreview nextPrompt
 
                   else
-                    Html.div
-                        [ style "text-align" "center"
-                        , style "padding" "40px"
-                        ]
-                        [ Html.h3 [] [ text "Round Complete!" ]
-                        , Html.p
-                            [ style "font-size" "18px"
-                            , style "color" "#666"
-                            , style "margin-top" "20px"
+                    Html.div [ class "lobby-container" ]
+                        [ Html.h3 [ class "lobby-title" ] [ text "Round Complete!" ]
+                        , Html.p [ class "lobby-message" ]
+                            [ text "Waiting for the next judge to start the next round"
+                            , Html.span [ class "waiting-indicator" ] [ text "..." ]
                             ]
-                            [ text "Waiting for the next judge to start the next round..." ]
                         ]
                 ]
 

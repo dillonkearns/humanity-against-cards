@@ -85,6 +85,42 @@ body {
   color: #ffffff;
 }
 
+/* Lobby/waiting state styles */
+.lobby-container {
+  text-align: center;
+  padding: 60px 30px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.lobby-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #1f2937;
+}
+
+.lobby-message {
+  font-size: 20px;
+  color: #6b7280;
+  margin-bottom: 30px;
+}
+
+/* Pulsing animation for waiting states */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.waiting-indicator {
+  display: inline-block;
+  animation: pulse 2s ease-in-out infinite;
+}
+
 /* Touch-friendly enhancements */
 @layer base {
   button,
