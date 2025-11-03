@@ -18,11 +18,71 @@
   --font-size-mobile-heading: 1.5rem;
 }
 
-/* Base styles */
+/* Base styles with Inter font */
+:root {
+  font-family: Inter, sans-serif;
+  font-feature-settings: 'liga' 1, 'calt' 1; /* fix for Chrome */
+}
+
+@supports (font-variation-settings: normal) {
+  :root {
+    font-family: InterVariable, sans-serif;
+  }
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #ffffff;
+  color: #000000;
+  margin: 0;
+  padding: 0;
+}
+
+/* App header - bold navbar style */
+.app-header {
+  background-color: #000000;
+  color: #ffffff;
+  padding: 20px 30px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.app-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.app-subtitle {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 10px 0;
+  color: #1f2937;
+}
+
+/* Card styling - white answer cards */
+.card-content {
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 29px;
+  padding: 20px;
+  border: 2px solid #1f2937;
+  border-radius: 12px;
+  background-color: white;
+  color: #000000;
+}
+
+/* Black prompt cards - CAH style */
+.prompt-card {
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 29px;
+  padding: 20px;
+  border: 2px solid #ffffff;
+  border-radius: 12px;
+  background-color: #000000;
+  color: #ffffff;
 }
 
 /* Touch-friendly enhancements */

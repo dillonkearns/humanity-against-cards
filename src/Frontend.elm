@@ -9,7 +9,7 @@ import Effect.Browser.Navigation as Navigation
 import Effect.Task
 import Effect.Time
 import Html exposing (Html, text)
-import Html.Attributes exposing (id, style, value, placeholder, disabled)
+import Html.Attributes exposing (id, style, value, placeholder, disabled, class)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
@@ -378,9 +378,12 @@ view model =
 
 viewPlayer : Model -> Html FrontendMsg
 viewPlayer model =
-    Html.div [ style "padding" "30px" ]
-        [ Html.h1 [] [ text "Humanity Against Cards" ]
-        , case model.joinedPlayer of
+    Html.div []
+        [ Html.div [ class "app-header" ]
+            [ Html.h1 [ class "app-title" ] [ text "Humanity Against Cards" ]
+            ]
+        , Html.div [ style "padding" "30px" ]
+            [ case model.joinedPlayer of
             Nothing ->
                 viewJoinForm model
 
@@ -394,6 +397,7 @@ viewPlayer model =
 
                     Ended ->
                         viewGameEnded model.playersList
+            ]
         ]
 
 
@@ -656,7 +660,7 @@ viewPlayerGame player model =
                     "Welcome, " ++ player.name ++ "!"
     in
     Html.div []
-        [ Html.h2 [] [ text headerText ]
+        [ Html.h2 [ class "app-subtitle" ] [ text headerText ]
         , viewScoreboard model.playersList model.currentJudge
         , case roundPhase of
             Nothing ->
@@ -672,16 +676,10 @@ viewRoundPhase player model isJudge roundPhase =
     case roundPhase of
         SubmissionPhase { prompt, submissions } ->
             Html.div []
-                [ Html.div
-                    [ style "margin-bottom" "20px"
-                    , style "padding" "20px"
-                    , style "background-color" "#f0f0f0"
-                    , style "border-radius" "8px"
-                    ]
-                    [ Html.h3 [] [ text "Current Prompt:" ]
-                    , Html.p
-                        [ style "font-size" "18px"
-                        , style "font-weight" "bold"
+                [ Html.div [ style "margin-bottom" "20px" ]
+                    [ Html.h3 [ style "margin-bottom" "10px" ] [ text "Current Prompt:" ]
+                    , Html.div
+                        [ class "prompt-card"
                         , id "current-prompt"
                         ]
                         [ text prompt ]
@@ -698,16 +696,10 @@ viewRoundPhase player model isJudge roundPhase =
 
         RevealPhase { prompt, submissions, revealedCount } ->
             Html.div []
-                [ Html.div
-                    [ style "margin-bottom" "20px"
-                    , style "padding" "20px"
-                    , style "background-color" "#f0f0f0"
-                    , style "border-radius" "8px"
-                    ]
-                    [ Html.h3 [] [ text "Current Prompt:" ]
-                    , Html.p
-                        [ style "font-size" "18px"
-                        , style "font-weight" "bold"
+                [ Html.div [ style "margin-bottom" "20px" ]
+                    [ Html.h3 [ style "margin-bottom" "10px" ] [ text "Current Prompt:" ]
+                    , Html.div
+                        [ class "prompt-card"
                         , id "current-prompt"
                         ]
                         [ text prompt ]
@@ -725,16 +717,10 @@ viewRoundPhase player model isJudge roundPhase =
 
         JudgingPhase { prompt, submissions, reactions } ->
             Html.div []
-                [ Html.div
-                    [ style "margin-bottom" "20px"
-                    , style "padding" "20px"
-                    , style "background-color" "#f0f0f0"
-                    , style "border-radius" "8px"
-                    ]
-                    [ Html.h3 [] [ text "Current Prompt:" ]
-                    , Html.p
-                        [ style "font-size" "18px"
-                        , style "font-weight" "bold"
+                [ Html.div [ style "margin-bottom" "20px" ]
+                    [ Html.h3 [ style "margin-bottom" "10px" ] [ text "Current Prompt:" ]
+                    , Html.div
+                        [ class "prompt-card"
                         , id "current-prompt"
                         ]
                         [ text prompt ]
@@ -792,20 +778,16 @@ viewJudgePromptPreview prompt =
             [ style "margin-bottom" "30px" ]
             [ text "You're the judge for the next round!" ]
         , Html.div
-            [ style "padding" "30px"
-            , style "background-color" "#f0f0f0"
-            , style "border-radius" "8px"
-            , style "margin-bottom" "30px"
+            [ style "margin-bottom" "30px"
             , style "max-width" "600px"
             , style "margin-left" "auto"
             , style "margin-right" "auto"
             ]
             [ Html.h3
-                [ style "margin-top" "0" ]
+                [ style "margin-bottom" "10px" ]
                 [ text "Next Prompt:" ]
-            , Html.p
-                [ style "font-size" "20px"
-                , style "font-weight" "bold"
+            , Html.div
+                [ class "prompt-card"
                 , id "next-prompt-preview"
                 ]
                 [ text prompt ]
@@ -933,16 +915,12 @@ viewJudgeSelection prompt submissions =
 viewJudgingCard : Int -> Submission -> Html FrontendMsg
 viewJudgingCard index submission =
     Html.div
-        [ style "padding" "15px"
-        , style "margin-bottom" "10px"
-        , style "background-color" "white"
-        , style "border" "2px solid #ddd"
-        , style "border-radius" "8px"
-        ]
-        [ Html.p [ style "font-size" "16px", style "margin-bottom" "10px" ] [ text submission.card ]
+        [ style "margin-bottom" "15px" ]
+        [ viewCard [] submission.card
         , Html.button
             [ onClick (SelectWinnerClicked submission.playerToken)
             , id ("select-winner-" ++ String.fromInt index)
+            , style "margin-top" "10px"
             , style "padding" "10px 20px"
             , style "font-size" "14px"
             , style "background-color" "#4CAF50"
@@ -960,14 +938,7 @@ viewSubmittedCards submissions =
     Html.div [ id "submitted-cards" ]
         (List.map
             (\submission ->
-                Html.div
-                    [ style "padding" "15px"
-                    , style "margin-bottom" "10px"
-                    , style "background-color" "white"
-                    , style "border" "1px solid #ddd"
-                    , style "border-radius" "8px"
-                    ]
-                    [ Html.p [ style "font-size" "16px", style "margin" "0" ] [ text submission.card ] ]
+                viewCard [ style "margin-bottom" "15px" ] submission.card
             )
             submissions
         )
@@ -999,18 +970,14 @@ viewSubmittedCardsWithReactions submissions reactions maybePlayerToken =
                                 Nothing
                 in
                 Html.div
-                    [ style "padding" "15px"
-                    , style "margin-bottom" "10px"
-                    , style "background-color" "white"
-                    , style "border" "1px solid #ddd"
-                    , style "border-radius" "8px"
-                    ]
-                    [ Html.p [ style "font-size" "16px", style "margin-bottom" "10px" ] [ text submission.card ]
+                    [ style "margin-bottom" "15px" ]
+                    [ viewCard [] submission.card
                     , if isOwnSubmission then
                         Html.p
                             [ style "text-align" "center"
                             , style "color" "#999"
                             , style "font-style" "italic"
+                            , style "margin-top" "10px"
                             , id ("your-card-" ++ String.fromInt index)
                             ]
                             [ text "Your card" ]
@@ -1020,6 +987,7 @@ viewSubmittedCardsWithReactions submissions reactions maybePlayerToken =
                             [ style "display" "flex"
                             , style "gap" "10px"
                             , style "justify-content" "center"
+                            , style "margin-top" "10px"
                             ]
                             [ viewReactionButton index submission.card Laugh "😂" (playerReaction == Just Laugh)
                             , viewReactionButton index submission.card Grimace "😬" (playerReaction == Just Grimace)
@@ -1080,18 +1048,14 @@ viewSubmittedCardsWithReactionTotals submissions reactions =
                             |> List.length
                 in
                 Html.div
-                    [ style "padding" "15px"
-                    , style "margin-bottom" "10px"
-                    , style "background-color" "white"
-                    , style "border" "1px solid #ddd"
-                    , style "border-radius" "8px"
-                    ]
-                    [ Html.p [ style "font-size" "16px", style "margin-bottom" "10px" ] [ text submission.card ]
+                    [ style "margin-bottom" "15px" ]
+                    [ viewCard [] submission.card
                     , Html.div
                         [ style "display" "flex"
                         , style "gap" "15px"
                         , style "justify-content" "center"
                         , style "font-size" "18px"
+                        , style "margin-top" "10px"
                         ]
                         [ Html.span [] [ text ("😂 " ++ String.fromInt laughCount) ]
                         , Html.span [] [ text ("😬 " ++ String.fromInt grimaceCount) ]
@@ -1153,6 +1117,13 @@ viewWinnerAnnouncement winnerToken winningCard players =
         ]
 
 
+viewCard : List (Html.Attribute msg) -> String -> Html msg
+viewCard attrs cardText =
+    Html.div
+        (class "card-content" :: attrs)
+        [ text cardText ]
+
+
 viewCardButton : Maybe String -> Int -> String -> Html FrontendMsg
 viewCardButton selectedCard index card =
     let
@@ -1164,14 +1135,12 @@ viewCardButton selectedCard index card =
         [ Html.button
             [ onClick (CardSelected card)
             , id ("card-" ++ String.fromInt index)
-            , style "padding" "15px"
+            , class "card-content"
             , style "width" "100%"
             , style "text-align" "left"
-            , style "border" (if isSelected then "2px solid #4CAF50" else "1px solid #ccc")
+            , style "border" (if isSelected then "3px solid #4CAF50" else "2px solid #1f2937")
             , style "background-color" (if isSelected then "#e8f5e9" else "white")
-            , style "border-radius" "4px"
             , style "cursor" "pointer"
-            , style "font-size" "14px"
             ]
             [ text card ]
         ]
@@ -1179,9 +1148,12 @@ viewCardButton selectedCard index card =
 
 viewAdmin : Model -> Html FrontendMsg
 viewAdmin model =
-    Html.div [ style "padding" "30px" ]
-        [ Html.h1 [] [ text "Admin Console" ]
-        , viewPlayersList model.playersList
+    Html.div []
+        [ Html.div [ class "app-header" ]
+            [ Html.h1 [ class "app-title" ] [ text "Admin Console" ]
+            ]
+        , Html.div [ style "padding" "30px" ]
+            [ viewPlayersList model.playersList
         , viewGameControls model
         , Html.h2 [] [ text "Load Deck" ]
         , Html.textarea
@@ -1208,6 +1180,7 @@ viewAdmin model =
 
             Just deck ->
                 viewLoadedDeck deck
+            ]
         ]
 
 
